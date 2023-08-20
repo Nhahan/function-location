@@ -9,7 +9,9 @@
     "build": "tsc",
     "test": "jest"
   },
-  "keywords": [],
+  "keywords": [
+    "[[FunctionLocation]]", "function", "class", "'path"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {

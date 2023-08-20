@@ -1,14 +1,24 @@
 import { resolve } from 'path';
 
-function getFunctionLocation(): string {
+function locate(): string | undefined {
     const stackTrace = new Error().stack;
-    const filePathRegex = /at __decorate * \((.*\.js)/;
-    const matches = stackTrace?.match(filePathRegex);
-    if (matches && matches.length > 1) {
-        const matchedPath = resolve(matches[1], '..');
-        return `${matchedPath}/**/*.js`;
-    }
-    throw new Error('Could not extract file path from stack trace');
+    const filePathRegex = /at [^(]*\((.*\.js)/;
+    const matchedPath = (stackTrace?.match(filePathRegex) || [])[1];
+    return matchedPath && resolve(matchedPath);
 }
 
-getFunctionLocation();
+// function getFunctionLocation(entity?: Function | { new (...args: any[]): any }): string | undefined {
+//     const stackTrace = new Error().stack;
+//     const filePathRegex = /at [^(]*\((.*\.js)/;
+//     const matchedPath = (stackTrace?.match(filePathRegex) || [])[1];
+//
+//     if (entity) {
+//         if (typeof entity === 'function' || typeof entity === 'object') {
+//             return matchedPath && resolve(matchedPath);
+//         } else {
+//             throw new Error('Invalid parameter type. Expected a function or class.');
+//         }
+//     } else {
+//         return matchedPath && resolve(matchedPath);
+//     }
+// }
