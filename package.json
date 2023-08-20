@@ -1,6 +1,6 @@
 {
   "name": "function-location",
-  "version": "1.0.0",
+  "version": "0.0.1-beta.0",
   "description": "Retrieving the function location in JavaScript.",
   "main": "index.js",
   "scripts": {
