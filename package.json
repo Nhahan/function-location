@@ -4,7 +4,10 @@
   "description": "Retrieving the function location in JavaScript.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "prepack": "npm run build",
+    "test:build": "tsc && node dist/index.js",
+    "build": "tsc",
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
