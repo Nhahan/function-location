@@ -1,6 +1,6 @@
 import { resolve } from 'path';
 
-function locate(): string | undefined {
+export function locate(): string | undefined {
     const stackTrace = new Error().stack;
     const filePathRegex = /at [^(]*\((.*\.js)/;
     const matchedPath = (stackTrace?.match(filePathRegex) || [])[1];
