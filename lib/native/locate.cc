@@ -14,7 +14,9 @@ void GetFunctionLocation(const FunctionCallbackInfo<Value>& args) {
 
   Local<Function> targetFunction = Local<Function>::Cast(args[0]);
 
-  ScriptOrigin scriptOrigin(isolate, targetFunction->GetScriptOrigin());
+  Local<Value> scriptOriginValue = targetFunction->GetScriptOrigin().ResourceName();
+
+  ScriptOrigin scriptOrigin(isolate, scriptOriginValue);
 
   if (!scriptOrigin.ResourceName().IsEmpty()) {
     Local<Value> scriptName = scriptOrigin.ResourceName();
@@ -28,7 +30,7 @@ void GetFunctionLocation(const FunctionCallbackInfo<Value>& args) {
 }
 
 void Initialize(Local<Object> exports) {
-  NODE_SET_METHOD(exports, "getFunctionLocation", GetFunctionLocation);
+  NODE_SET_METHOD(exports, "locateV8", GetFunctionLocation);
 }
 
 NODE_MODULE(NODE_GYP_MODULE_NAME, Initialize)
