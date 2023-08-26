@@ -6,7 +6,9 @@ The function-location library is a tool for finding the location of the currentl
 
 # Installation
 
+```bash
 npm i function-location
+```
 
 # Usage
 
