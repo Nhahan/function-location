@@ -30,7 +30,7 @@ void GetFunctionLocation(const FunctionCallbackInfo<Value>& args) {
 }
 
 void Initialize(Local<Object> exports) {
-  NODE_SET_METHOD(exports, "locateV8", GetFunctionLocation);
+  NODE_SET_METHOD(exports, "locate", GetFunctionLocation);
 }
 
 NODE_MODULE(NODE_GYP_MODULE_NAME, Initialize)
