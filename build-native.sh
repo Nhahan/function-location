@@ -2,11 +2,11 @@
 
 current_dir=$(pwd)
 
-cd ./lib/native
+cd ./native
 
 node-gyp configure
 node-gyp build
 
-cp ./build/Release/locate.node $current_dir/src/locate.node
+cp ./build/Release/locate.node $current_dir/lib/locate.node
 
 cd $current_dir
