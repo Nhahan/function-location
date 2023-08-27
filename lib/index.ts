@@ -1,6 +1,6 @@
 import {TestClass} from "../test/test-class";
 
-const {locateV8} = require('./native/build/Release/locate.node');
+const {locateV8} = require('../native/build/Release/locate.node');
 
 function main() {
     try {
