@@ -7,7 +7,6 @@ cd ./lib/native
 node-gyp configure
 node-gyp build
 
-#cp ./build/Release/filemod.node $current_dir/src/filemod-sync.node
-#cp ./build/Release/filemod.node $current_dir/src/filemod-async.node
+cp ./build/Release/locate.node $current_dir/src/locate.node
 
 cd $current_dir
