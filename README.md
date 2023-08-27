@@ -1,5 +1,3 @@
-**[This library is currently in beta and not fully stable.](https://github.com/Nhahan/function-location)**
-
 # Description
 
 The function-location library is a tool for finding the location of the currently executing function in a JavaScript environment. By utilizing this library, you can extract the source file path of the executing function.
