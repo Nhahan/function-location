@@ -1,36 +1,32 @@
-#include <node.h>
-#include <v8.h>
+#include <napi.h>
 
-using namespace v8;
+void GetFunctionLocation(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
 
-void GetFunctionLocation(const FunctionCallbackInfo<Value>& args) {
-  Isolate* isolate = args.GetIsolate();
-
-  if (args.Length() < 1 || !args[0]->IsFunction()) {
-    isolate->ThrowException(Exception::TypeError(
-        String::NewFromUtf8Literal(isolate, "Function argument expected")));
+  if (info.Length() < 1 || !info[0].IsFunction()) {
+    Napi::TypeError::New(env, "Function argument expected").ThrowAsJavaScriptException();
     return;
   }
 
-  Local<Function> targetFunction = Local<Function>::Cast(args[0]);
+  Napi::Function targetFunction = info[0].As<Napi::Function>();
 
-  Local<Value> scriptOriginValue = targetFunction->GetScriptOrigin().ResourceName();
+  Napi::Value scriptOriginValue = targetFunction.Get("scriptOrigin").As<Napi::Object>().Get("resourceName");
 
-  ScriptOrigin scriptOrigin(isolate, scriptOriginValue);
-
-  if (!scriptOrigin.ResourceName().IsEmpty()) {
-    Local<Value> scriptName = scriptOrigin.ResourceName();
-    if (scriptName->IsString()) {
-      args.GetReturnValue().Set(scriptName);
+  if (!scriptOriginValue.IsUndefined()) {
+    Napi::Value scriptName = scriptOriginValue;
+    if (scriptName.IsString()) {
+      info.GetReturnValue().Set(scriptName);
       return;
     }
   }
 
-  args.GetReturnValue().SetUndefined();
+  info.GetReturnValue().SetUndefined();
 }
 
-void Initialize(Local<Object> exports) {
-  NODE_SET_METHOD(exports, "locate", GetFunctionLocation);
+Napi::Object Initialize(Napi::Env env, Napi::Object exports) {
+  exports.Set("locate", Napi::Function::New(env, GetFunctionLocation));
+  return exports;
 }
 
-NODE_MODULE(NODE_GYP_MODULE_NAME, Initialize)
+NAPI_MODULE(NODE_GYP_MODULE_NAME, Initialize)
+
