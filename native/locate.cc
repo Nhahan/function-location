@@ -1,43 +1,36 @@
-#include <node_api.h>
+#include <node.h>
+#include <v8.h>
 
-napi_value GetFunctionLocation(napi_env env, napi_callback_info info) {
-  size_t argc = 1;
-  napi_value args[1];
-  napi_value jsReturnValue;
+using namespace v8;
 
-  napi_get_cb_info(env, info, &argc, args, NULL, NULL);
+void GetFunctionLocation(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = args.GetIsolate();
 
-  if (argc < 1) {
-    napi_throw_type_error(env, NULL, "Function argument expected");
-    return NULL;
+  if (args.Length() < 1 || !args[0]->IsFunction()) {
+    isolate->ThrowException(Exception::TypeError(
+        String::NewFromUtf8Literal(isolate, "Function argument expected")));
+    return;
   }
 
-  napi_valuetype valueType;
-  napi_typeof(env, args[0], &valueType);
+  Local<Function> targetFunction = Local<Function>::Cast(args[0]);
 
-  if (valueType != napi_function) {
-    napi_throw_type_error(env, NULL, "Function argument expected");
-    return NULL;
+  Local<Value> scriptOriginValue = targetFunction->GetScriptOrigin().ResourceName();
+
+  ScriptOrigin scriptOrigin(isolate, scriptOriginValue);
+
+  if (!scriptOrigin.ResourceName().IsEmpty()) {
+    Local<Value> scriptName = scriptOrigin.ResourceName();
+    if (scriptName->IsString()) {
+      args.GetReturnValue().Set(scriptName);
+      return;
+    }
   }
 
-  napi_value targetFunction = args[0];
-
-  napi_value scriptOriginValue;
-  napi_get_named_property(env, targetFunction, "name", &scriptOriginValue);
-
-  napi_value scriptName;
-  napi_coerce_to_string(env, scriptOriginValue, &scriptName);
-
-  napi_get_undefined(env, &jsReturnValue);
-
-  return jsReturnValue;
+  args.GetReturnValue().SetUndefined();
 }
 
-napi_value Initialize(napi_env env, napi_value exports) {
-  napi_property_descriptor desc = {"locate", NULL, GetFunctionLocation, NULL, NULL, NULL, napi_default, NULL};
-  napi_define_properties(env, exports, 1, &desc);
-
-  return exports;
+void Initialize(Local<Object> exports) {
+  NODE_SET_METHOD(exports, "locate", GetFunctionLocation);
 }
 
-NAPI_MODULE(NODE_GYP_MODULE_NAME, Initialize)
+NODE_MODULE(NODE_GYP_MODULE_NAME, Initialize)
