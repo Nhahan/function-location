@@ -10,11 +10,15 @@
     "test": "jest"
   },
   "keywords": [
-    "[[FunctionLocation]]", "function", "class", "'path"
+    "[[FunctionLocation]]",
+    "function",
+    "class",
+    "'path"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "node-addon-api": "^7.0.0",
     "typescript": "^5.1.6"
   },
   "devDependencies": {
