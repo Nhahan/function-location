@@ -1,4 +1,4 @@
-import {TestClass} from "../test/test-class";
+import {TestClass} from "../test/index.spec";
 
 const {locate} = require('./locate.node');
 // TODO: build on win32

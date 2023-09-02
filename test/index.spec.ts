@@ -1,9 +1,9 @@
 import { locateV8 } from '../lib';
 
-class TestClass {
+export class TestClass {
 }
 
-function TestFunction() {
+export function TestFunction() {
 }
 
 describe('locateV8', () => {
