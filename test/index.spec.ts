@@ -8,11 +8,11 @@ export function TestFunction() {
 
 describe('locateV8', () => {
     test('class path', () => {
-        const functionLocation = locateV8(TestClass);
-        expect(functionLocation).toContain('/test/index.spec.ts');
+        const classPath = locateV8(TestClass);
+        expect(classPath).toContain('/test/index.spec.ts');
     });
     test('function path', () => {
-        const functionLocation = locateV8(TestFunction);
-        console.log(functionLocation);
+        const functionPath = locateV8(TestFunction);
+        expect(functionPath).toContain('/test/index.spec.ts');
     });
 });
