@@ -9,7 +9,7 @@ export function TestFunction() {
 describe('locateV8', () => {
     test('class path', () => {
         const functionLocation = locateV8(TestClass);
-        console.log(functionLocation);
+        expect(functionLocation).toContain('/test/index.spec.ts');
     });
     test('function path', () => {
         const functionLocation = locateV8(TestFunction);
