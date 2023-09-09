@@ -9,10 +9,10 @@ export function TestFunction() {
 describe('locateV8', () => {
     test('class path', () => {
         const classPath = locateV8(TestClass);
-        expect(classPath).toContain('/test/index.spec.ts');
+        expect(classPath).toBe(__filename);
     });
     test('function path', () => {
         const functionPath = locateV8(TestFunction);
-        expect(functionPath).toContain('/test/index.spec.ts');
+        expect(functionPath).toBe(__filename);
     });
 });
