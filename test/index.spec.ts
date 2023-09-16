@@ -7,12 +7,20 @@ export function TestFunction() {
 }
 
 describe('locateV8', () => {
-    test('class path', () => {
+    test('class path success', () => {
         const classPath = locateV8(TestClass);
-        expect(classPath).toBe(__filename);
+        expect(classPath).toEqual(__filename);
+    });
+    test('class path fail', () => {
+        const classPath = locateV8(TestClass);
+        expect(classPath).not.toEqual(__dirname);
     });
     test('function path', () => {
         const functionPath = locateV8(TestFunction);
-        expect(functionPath).toBe(__filename);
+        expect(functionPath).toEqual(__filename);
+    });
+    test('function path', () => {
+        const functionPath = locateV8(TestFunction);
+        expect(functionPath).not.toEqual(__dirname);
     });
 });
