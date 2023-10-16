@@ -16,7 +16,7 @@
     "path",
     "location"
   ],
-  "author": "",
+  "author": "Nhahan",
   "license": "MIT",
   "dependencies": {
     "node-addon-api": "^7.0.0",
