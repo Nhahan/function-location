@@ -6,7 +6,7 @@ You can retrieve the path of a class or function using this library, and it supp
 # Installation
 
 ```bash
-npm i function-location
+npm install function-location
 ```
 
 # Usage
