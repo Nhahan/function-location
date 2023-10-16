@@ -31,4 +31,4 @@ The `locate()` function returns the source file path of the currently executing 
 
 # License
 
-This library is provided under the [MIT license](https://github.com/Nhahan/function-location). The copyright for the relevant code is subject to that license.
+This library is licensed under the [MIT license](https://github.com/Nhahan/function-location).
