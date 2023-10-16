@@ -7,6 +7,10 @@ cd ./native
 node-gyp configure
 node-gyp build
 
-cp ./build/Release/locate.node $current_dir/lib/locate.node
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+  cp ./build/Release/locate.node $current_dir/lib/locate-win.node
+else
+  cp ./build/Release/locate.node $current_dir/lib/locate.node
+fi
 
 cd $current_dir
