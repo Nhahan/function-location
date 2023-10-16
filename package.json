@@ -13,7 +13,8 @@
     "[[FunctionLocation]]",
     "function",
     "class",
-    "'path"
+    "path",
+    "location"
   ],
   "author": "",
   "license": "MIT",
