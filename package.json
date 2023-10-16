@@ -1,7 +1,7 @@
 {
   "name": "function-location",
   "version": "0.0.1-beta.0",
-  "description": "Retrieving the function location in JavaScript.",
+  "description": "Retrieve `[[FunctionLocation]]` from V8.",
   "main": "index.js",
   "scripts": {
     "prepack": "npm run build",
