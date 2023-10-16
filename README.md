@@ -1,6 +1,7 @@
 # Description
 
-The function-location library is a tool for finding the location of the currently executing function in a JavaScript environment. By utilizing this library, you can extract the source file path of the executing function.
+You can retrieve the path of a class or function using this library, and it supports not only `node` command but also 
+`ts-node`.
 
 # Installation
 
@@ -11,19 +12,22 @@ npm i function-location
 # Usage
 
 ```ts
-import { locate } from 'function-location';
+import { locateV8 } from 'function-location';
 
-function myFunction() {
-    const sourceFilePath = locate();
-    console.log(sourceFilePath);
+class TestClass {
 }
 
-myFunction();
+function TestFunction() {
+}
+
+// below returns the location of class or function
+locateV8(TestClass);
+locateV8(TestFunction);
 ```
 
 # Return Value
 
-The `locate()` function returns the source file path of the currently executing function as a string. If the function's location cannot be determined, it returns `undefined`.
+The `locate()` function returns the source file path of the currently executing function as a string.
 
 # License
 
