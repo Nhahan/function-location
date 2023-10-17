@@ -27,7 +27,7 @@ locateV8(TestFunction);
 
 # Return Value
 
-The `locate()` function returns the source file path of the currently executing function as a string.
+The `locateV8()` function returns the source file path of the currently executing function as a string.
 
 # License
 
