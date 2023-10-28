@@ -22,7 +22,6 @@ function TestFunction() {
 
 locateV8(TestClass);
 locateV8(TestFunction);
-// returns like `/Users/hello/Documents/function-location/test/index.spec.ts`
 ```
 
 # Return Value
