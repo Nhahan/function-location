@@ -9,7 +9,6 @@ export function TestFunction() {
 describe('locateV8', () => {
         test('class path success', () => {
         const classPath = locateV8(TestClass);
-            console.log(classPath);
         expect(classPath).toEqual(__filename);
     });
 
