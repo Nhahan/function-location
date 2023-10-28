@@ -1,6 +1,6 @@
 {
   "name": "function-location",
-  "version": "0.0.1-beta.0",
+  "version": "0.0.1",
   "description": "Retrieve `[[FunctionLocation]]` from V8.",
   "main": "index.js",
   "scripts": {
@@ -14,10 +14,13 @@
     "function",
     "class",
     "path",
-    "location"
+    "location",
+    "locateV8",
+    "locate"
   ],
   "author": "Nhahan",
   "license": "MIT",
+  "homepage": "https://github.com/Nhahan/function-location",
   "dependencies": {
     "node-addon-api": "^7.0.0",
     "typescript": "^5.1.6"
