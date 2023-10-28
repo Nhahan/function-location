@@ -20,9 +20,9 @@ class TestClass {
 function TestFunction() {
 }
 
-// below returns the location of class or function
 locateV8(TestClass);
 locateV8(TestFunction);
+// returns like `/Users/hello/Documents/function-location/test/index.spec.ts`
 ```
 
 # Return Value
