@@ -1,4 +1,6 @@
+const locateOs = process.platform === 'win32' ? './locate-win.node' : './locate.node';
+
 export function locateV8(input: Function) {
-    const {locate} = require(process.platform === 'win32' ? './locate-win.node' : './locate.node');
+    const {locate} = require(locateOs);
     return locate(input);
 }
