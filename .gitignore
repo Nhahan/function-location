@@ -398,3 +398,4 @@ Temporary Items
 dist
 .webpack
 .serverless/**/*.zip
+prebuilds/**/*.node
