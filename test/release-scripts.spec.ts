@@ -57,19 +57,21 @@ describe('release scripts', () => {
         ...process.env,
         GITHUB_REF: 'refs/heads/main',
         RELEASE_BRANCH: 'dev',
+        RELEASE_DRY_RUN: 'false',
       },
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain('Release is restricted to dev.');
+    expect(result.stderr).toContain('Release is restricted to refs/heads/dev.');
 
     const ok = spawnSync('node', [BRANCH_SCRIPT_PATH], {
       env: {
         ...process.env,
         GITHUB_REF: 'refs/heads/dev',
         RELEASE_BRANCH: 'dev',
+        RELEASE_DRY_RUN: 'false',
       },
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -77,5 +79,34 @@ describe('release scripts', () => {
 
     expect(ok.status).toBe(0);
     expect(ok.stdout).toContain('Release branch check passed');
+  });
+
+  test('verify-release-branch allows ci-verify branches only in dry-run mode', () => {
+    const dryRunReject = spawnSync('node', [BRANCH_SCRIPT_PATH], {
+      env: {
+        ...process.env,
+        GITHUB_REF: 'refs/heads/ci-verify/patch-1',
+        RELEASE_BRANCH: 'dev',
+        RELEASE_DRY_RUN: 'false',
+      },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    expect(dryRunReject.status).not.toBe(0);
+
+    const dryRunPass = spawnSync('node', [BRANCH_SCRIPT_PATH], {
+      env: {
+        ...process.env,
+        GITHUB_REF: 'refs/heads/ci-verify/patch-1',
+        RELEASE_BRANCH: 'dev',
+        RELEASE_DRY_RUN: 'true',
+      },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    expect(dryRunPass.status).toBe(0);
+    expect(dryRunPass.stdout).toContain('Release branch check passed');
   });
 });

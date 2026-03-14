@@ -61,10 +61,23 @@ Roadmap hardening:
 - Workflow validation on non-trivial changes should be done on temporary branches (`ci-verify/*`) to prevent noise in long-lived branches.
 - Recommended validation flow for GitHub Actions changes:
   - `git checkout -b ci-verify/<topic>`
-  - push and run the desired workflow on that branch
-  - only merge to `main`/`dev` after successful workflow runs
+  - push and run desired workflow on that branch
+  - for release flow dry-run, execute from `ci-verify/*` with `dry_run=true`
+  - only merge back to `main`/`dev` after successful workflow runs
 - Release workflow:
   - `npm` publish is allowed only from `dev`.
   - workflow requires matrix test and prebuild coverage jobs to pass before publish.
   - prebuild binaries are generated in CI and merged into release artifacts only during release.
   - CI-generated binaries are never committed to git history.
+
+### Example: release validation without publish
+
+```bash
+git checkout -b ci-verify/release-pipeline
+git push -u origin ci-verify/release-pipeline
+
+# run the workflow from ci-verify/<topic> with dry-run=true
+gh workflow run Release -f dry_run=true
+```
+
+Dry-run also validates all matrix tests/prebuild coverage and package metadata.

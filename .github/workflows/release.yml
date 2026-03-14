@@ -23,6 +23,7 @@ jobs:
       - name: Enforce release branch
         run: |
           RELEASE_BRANCH=dev \
+            RELEASE_DRY_RUN=${{ inputs.dry_run }} \
             GITHUB_REF=${{ github.ref }} \
             node ./scripts/verify-release-branch.js
 
@@ -143,10 +144,31 @@ jobs:
       - name: Prepare release package
         run: npm run release:prepare
 
+      - name: Resolve release package metadata
+        id: release_metadata
+        run: |
+          echo "name=$(node -p \"require('./package.json').name\")" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release version is new
+        run: |
+          if npm view "${{ steps.release_metadata.outputs.name }}@${{ steps.release_metadata.outputs.version }}" version >/tmp/npm-view.out 2>/tmp/npm-view.err; then
+            echo "${{ steps.release_metadata.outputs.name }}@${{ steps.release_metadata.outputs.version }} already exists on npm."
+            echo "Publish would overwrite an existing release. Bump package.json version before retrying."
+            exit 1
+          fi
+
+          if ! grep -q "E404" /tmp/npm-view.err; then
+            echo "Failed to verify npm version availability."
+            cat /tmp/npm-view.err
+            exit 1
+          fi
+
       - name: Verify release branch
         env:
           RELEASE_BRANCH: dev
           GITHUB_REF: ${{ github.ref }}
+          RELEASE_DRY_RUN: ${{ inputs.dry_run }}
         run: node ./scripts/verify-release-branch.js
 
       - name: Build .npm auth config
@@ -158,7 +180,8 @@ jobs:
             echo "NPM_TOKEN is not set.";
             exit 1;
           fi
-          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > "$RUNNER_TEMP/npmrc"
+          echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/npmrc" >> "$GITHUB_ENV"
 
       - name: Dry run publish
         if: ${{ inputs.dry_run == 'true' }}
