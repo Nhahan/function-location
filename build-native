@@ -4,9 +4,8 @@ const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 
-const rootDir = path.resolve(__dirname);
-const nodeGyp = path.join(rootDir, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js');
-const nativeDir = path.join(rootDir, 'native');
+const rootPackageDir = path.resolve(__dirname);
+const nodeGyp = path.join(rootPackageDir, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js');
 
 if (!fs.existsSync(nodeGyp)) {
   throw new Error(
@@ -15,15 +14,10 @@ if (!fs.existsSync(nodeGyp)) {
 }
 
 execFileSync(process.execPath, [nodeGyp, 'configure'], {
-  cwd: nativeDir,
+  cwd: rootPackageDir,
   stdio: 'inherit',
 });
 execFileSync(process.execPath, [nodeGyp, 'build'], {
-  cwd: nativeDir,
-  stdio: 'inherit',
-});
-
-execFileSync(process.execPath, [path.join(rootDir, 'scripts', 'copy-native-addon.js')], {
-  cwd: rootDir,
+  cwd: rootPackageDir,
   stdio: 'inherit',
 });

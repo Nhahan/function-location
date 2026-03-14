@@ -2,7 +2,7 @@
   "targets": [
     {
       "target_name": "locate",
-      "sources": ["locate.cc"],
+      "sources": ["native/locate.cc"],
       "cflags!": [ "-fno-exceptions" ],
       "cflags_cc!": [ "-fno-exceptions" ]
     }

@@ -48,7 +48,7 @@ if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.files))
 }
 
 const includedPaths = new Set(manifest.files.map((entry) => entry.path));
-const missingFiles = requiredFiles.filter((file) => !includedPaths.has(file));
+const missingFiles = requiredFiles.filter((file) => !matchesRequiredFile(file, includedPaths));
 
 if (missingFiles.length > 0) {
   console.error('Missing files in package tarball:', missingFiles.join(', '));
@@ -58,3 +58,32 @@ if (missingFiles.length > 0) {
 console.log('Package tarball includes required files.');
 
 tarballPath = manifest.filename ? path.join(rootDir, manifest.filename) : null;
+
+function matchesRequiredFile(requiredFile, includedPaths) {
+  if (requiredFile.endsWith('/**')) {
+    const prefix = requiredFile.slice(0, -3);
+    if (prefix === '') return false;
+
+    return [...includedPaths].some((includedPath) => matchesDirectory(prefix, includedPath));
+  }
+
+  if (requiredFile.endsWith('/')) {
+    const prefix = requiredFile.slice(0, -1);
+    return [...includedPaths].some((includedPath) => matchesDirectory(prefix, includedPath));
+  }
+
+  return includedPaths.has(requiredFile);
+}
+
+function matchesDirectory(prefix, includedPath) {
+  const normalizedPrefix = normalizePath(prefix);
+  const normalizedPath = normalizePath(includedPath);
+  return (
+    normalizedPath === normalizedPrefix ||
+    normalizedPath.startsWith(`${normalizedPrefix}/`)
+  );
+}
+
+function normalizePath(value) {
+  return value.replace(/\\/g, '/');
+}

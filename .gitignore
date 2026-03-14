@@ -358,7 +358,7 @@ __pycache__/
 # OpenCover UI analysis results
 OpenCover/
 coverage/
-native/build/
+build/
 
 ### macOS template
 # General
