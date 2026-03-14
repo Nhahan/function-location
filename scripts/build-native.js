@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
-const { execFileSync } = require('node:child_process');
-const path = require('node:path');
-const fs = require('node:fs');
+'use strict';
 
-const rootPackageDir = path.resolve(__dirname);
+const { execFileSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+const rootPackageDir = path.resolve(__dirname, '..');
 const nodeGyp = path.join(rootPackageDir, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js');
 
 if (!fs.existsSync(nodeGyp)) {
@@ -17,6 +19,7 @@ execFileSync(process.execPath, [nodeGyp, 'configure'], {
   cwd: rootPackageDir,
   stdio: 'inherit',
 });
+
 execFileSync(process.execPath, [nodeGyp, 'build'], {
   cwd: rootPackageDir,
   stdio: 'inherit',

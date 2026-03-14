@@ -4,10 +4,14 @@ import { createLocateLoader } from '../lib/loader';
 
 type MockRequire = {
   (path: string): unknown;
+  cache?: Record<string, { exports?: unknown; filename?: string }>;
 };
 
-function makeRequireWithResolvedModules(modules: Record<string, unknown>): MockRequire {
-  return ((modulePath: string) => {
+function makeRequireWithResolvedModules(
+  modules: Record<string, unknown>,
+  cache: Record<string, { exports?: unknown; filename?: string }> = {},
+): MockRequire {
+  const mock = ((modulePath: string) => {
     if (!(modulePath in modules)) {
       const error = new Error(`Cannot find module '${modulePath}'`) as NodeJS.ErrnoException;
       error.code = 'MODULE_NOT_FOUND';
@@ -16,6 +20,9 @@ function makeRequireWithResolvedModules(modules: Record<string, unknown>): MockR
 
     return modules[modulePath];
   }) as MockRequire;
+
+  mock.cache = cache;
+  return mock;
 }
 
 describe('native loader', () => {

@@ -17,7 +17,7 @@
   "scripts": {
     "build:all": "npm run build && npm run build:native",
     "build": "tsc",
-    "build:native": "node ./build-native",
+    "build:native": "node ./scripts/build-native.js",
     "install": "node-gyp-build",
     "prebuild": "node ./scripts/prebuild.js",
     "verify:prebuild": "node ./scripts/verify-prebuild.js",
@@ -26,9 +26,10 @@
     "release:branch-check": "node ./scripts/verify-release-branch.js",
     "release:merge-prebuilds": "node ./scripts/merge-prebuild-artifacts.js",
     "release:prepare": "npm run build:all && npm run verify:pack",
-    "pretest": "npm run build:all",
+    "release:prepare:ci": "npm run build && npm run verify:pack",
     "prepack": "npm run build:all && npm run prebuild && npm run verify:pack",
-    "test": "jest"
+    "test": "node ./scripts/run-tests.js",
+    "bench:compare": "node ./scripts/benchmark-comparison.js"
   },
   "keywords": [
     "[[FunctionLocation]]",
@@ -42,6 +43,9 @@
   "author": "Nhahan",
   "license": "MIT",
   "homepage": "https://github.com/Nhahan/function-location",
+  "engines": {
+    "node": ">=8 <25"
+  },
   "devDependencies": {
     "@types/jest": "^29.5.3",
     "babel-jest": "^29.6.4",
