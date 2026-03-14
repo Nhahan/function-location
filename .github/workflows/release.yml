@@ -1,23 +1,40 @@
-name: CI
+name: Release
 
 permissions:
   contents: read
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run the release process without publishing to npm.'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
+  guard:
+    name: release-branch-guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enforce release branch
+        run: |
+          RELEASE_BRANCH=dev \
+            GITHUB_REF=${{ github.ref }} \
+            node ./scripts/verify-release-branch.js
+
   test:
     name: test-${{ matrix.os }}-node-${{ matrix.node-version }}
     runs-on: ${{ matrix.os }}
+    needs: guard
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
         node-version: [20.x, 22.x]
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,18 +52,15 @@ jobs:
       - name: Run test suite
         run: npm test -- --runInBand
 
-      - name: Verify package tarball
-        run: npm run prepack
-
   prebuild:
     name: prebuild-${{ matrix.os }}-node-${{ matrix.node-version }}
     runs-on: ${{ matrix.os }}
+    needs: guard
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
         node-version: [20.x, 22.x]
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,7 +94,7 @@ jobs:
   prebuild-coverage:
     name: prebuild-coverage
     runs-on: ubuntu-latest
-    needs: prebuild
+    needs: [prebuild]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -97,3 +111,59 @@ jobs:
 
       - name: Verify prebuild cross-platform coverage
         run: node ./scripts/verify-prebuild-coverage.js --base-dir=merged-prebuilds --required='darwin-arm64|darwin-x64,linux-x64|linux-arm64,win32-x64' --required-min=2
+
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    needs: [test, prebuild-coverage]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Download prebuild artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: prebuild-*
+          path: downloaded-prebuilds
+          merge-multiple: true
+
+      - name: Merge prebuild artifacts
+        run: PREBUILD_ARTIFACT_ROOT=downloaded-prebuilds PREBUILD_MERGED_DIR=prebuilds node ./scripts/merge-prebuild-artifacts.js
+
+      - name: Prepare release package
+        run: npm run release:prepare
+
+      - name: Verify release branch
+        env:
+          RELEASE_BRANCH: dev
+          GITHUB_REF: ${{ github.ref }}
+        run: node ./scripts/verify-release-branch.js
+
+      - name: Build .npm auth config
+        if: ${{ inputs.dry_run != 'true' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN is not set.";
+            exit 1;
+          fi
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+
+      - name: Dry run publish
+        if: ${{ inputs.dry_run == 'true' }}
+        run: npm publish --access public --dry-run
+
+      - name: Publish package
+        if: ${{ inputs.dry_run != 'true' }}
+        run: npm publish --access public
