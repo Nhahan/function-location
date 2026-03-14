@@ -202,6 +202,9 @@ DocProject/Help/html
 # Click-Once directory
 publish/
 
+# Project guidance
+AGENTS.md
+
 # Publish Web Output
 *.[Pp]ublish.xml
 *.azurePubxml
