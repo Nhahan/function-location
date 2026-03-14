@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="330" viewBox="0 0 820 330" role="img" aria-labelledby="title desc">
+  <title id="title">function-location benchmark sample</title>
+  <desc id="desc">A sample bar chart comparing native lookup latency and a baseline JS approach.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="820" height="330" fill="url(#bg)"/>
+  <text x="34" y="40" fill="#e2e8f0" font-size="20" font-family="Arial, Helvetica, sans-serif" font-weight="700">
+    function-location benchmark (example)
+  </text>
+  <text x="34" y="66" fill="#94a3b8" font-size="12" font-family="Arial, Helvetica, sans-serif">
+    Environment: macOS • Node v22.20.0 • Warmup enabled • 10,000 calls
+  </text>
+
+  <line x1="80" y1="250" x2="760" y2="250" stroke="#334155" stroke-width="2"/>
+  <line x1="80" y1="70" x2="80" y2="250" stroke="#334155" stroke-width="2"/>
+
+  <text x="54" y="255" fill="#94a3b8" font-size="11" font-family="Arial, Helvetica, sans-serif" text-anchor="end">0</text>
+  <text x="54" y="210" fill="#94a3b8" font-size="11" font-family="Arial, Helvetica, sans-serif" text-anchor="end">2</text>
+  <text x="54" y="160" fill="#94a3b8" font-size="11" font-family="Arial, Helvetica, sans-serif" text-anchor="end">4</text>
+  <text x="54" y="110" fill="#94a3b8" font-size="11" font-family="Arial, Helvetica, sans-serif" text-anchor="end">6</text>
+  <text x="54" y="60" fill="#94a3b8" font-size="11" font-family="Arial, Helvetica, sans-serif" text-anchor="end">8</text>
+
+  <rect x="220" y="95" width="160" height="155" fill="#22c55e" rx="4"/>
+  <rect x="460" y="180" width="160" height="70" fill="#60a5fa" rx="4"/>
+
+  <text x="300" y="90" fill="#e2e8f0" font-size="14" font-family="Arial, Helvetica, sans-serif" text-anchor="middle" font-weight="700">
+    locateV8
+  </text>
+  <text x="540" y="175" fill="#e2e8f0" font-size="14" font-family="Arial, Helvetica, sans-serif" text-anchor="middle" font-weight="700">
+    baseline
+  </text>
+
+  <text x="300" y="280" fill="#cbd5e1" font-size="12" font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+    0.229 µs/call
+  </text>
+  <text x="540" y="280" fill="#cbd5e1" font-size="12" font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+    1.80 µs/call
+  </text>
+
+  <text x="300" y="300" fill="#94a3b8" font-size="11" font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+    native
+  </text>
+  <text x="540" y="300" fill="#94a3b8" font-size="11" font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+    baseline sample
+  </text>
+
+  <text x="34" y="320" fill="#64748b" font-size="11" font-family="Arial, Helvetica, sans-serif">
+    Chart values are illustrative and may differ in your environment.
+  </text>
+</svg>
