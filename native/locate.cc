@@ -29,7 +29,9 @@ void GetFunctionLocation(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().SetUndefined();
 }
 
-void Initialize(Local<Object> exports) {
+void Initialize(Local<Object> exports, Local<Value> module, void* priv) {
+  (void)module;
+  (void)priv;
   NODE_SET_METHOD(exports, "locate", GetFunctionLocation);
 }
 

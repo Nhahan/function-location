@@ -358,6 +358,7 @@ __pycache__/
 # OpenCover UI analysis results
 OpenCover/
 coverage/
+native/build/
 
 ### macOS template
 # General
@@ -385,11 +386,12 @@ Icon
 .AppleDesktop
 Network Trash Folder
 Temporary Items
+# macOS
 .apdisk
 
-=======
 # Local
 .env
+*.tgz
 dist
 .webpack
 .serverless/**/*.zip
