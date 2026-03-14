@@ -31,3 +31,9 @@ The `locateV8()` function returns the source file path of the currently executin
 # License
 
 This library is licensed under the [MIT license](https://github.com/Nhahan/function-location).
+
+# Native Distribution
+
+`function-location` ships prebuilt binaries under `prebuilds/` for supported `node-gyp-build` platforms.
+When no compatible prebuild exists, installation falls back to a local `node-gyp` rebuild through
+`node-gyp-build` (requires local build tooling).
