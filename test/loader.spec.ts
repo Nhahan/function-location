@@ -1,151 +1,76 @@
-import { createLocateLoader, resolveNativeAddonFilename } from '../lib/loader';
+import path from 'node:path';
+
+import { createLocateLoader } from '../lib/loader';
 
 type MockRequire = {
   (path: string): unknown;
-  resolve(
-    path: string,
-    options?: {
-      paths?: string[];
-    },
-  ): string;
 };
 
-function makeMissingModuleError(requestedModule = ''): NodeJS.ErrnoException {
-  const message = requestedModule
-    ? `Cannot find module '${requestedModule}'`
-    : 'cannot find module';
-  return Object.assign(new Error(message), { code: 'MODULE_NOT_FOUND' });
-}
+function makeRequireWithResolvedModules(modules: Record<string, unknown>): MockRequire {
+  return ((modulePath: string) => {
+    if (!(modulePath in modules)) {
+      const error = new Error(`Cannot find module '${modulePath}'`) as NodeJS.ErrnoException;
+      error.code = 'MODULE_NOT_FOUND';
+      throw error;
+    }
 
-function makeRequireWithResolve(
-  onRequire: (path: string) => unknown,
-  onResolve: (path: string) => string = (path) => path,
-): MockRequire {
-  const mockedRequire = ((path: string) => onRequire(path)) as MockRequire;
-  mockedRequire.resolve = (path: string) => onResolve(path);
-  return mockedRequire;
+    return modules[modulePath];
+  }) as MockRequire;
 }
 
 describe('native loader', () => {
-  test('resolves linux-style filename first on non-win32', () => {
-    expect(resolveNativeAddonFilename('linux')[0]).toBe('locate.node');
-  });
-
-  test('resolves win32-style filename first on win32', () => {
-    expect(resolveNativeAddonFilename('win32')[0]).toBe('locate-win.node');
-  });
-
-  test('falls back to default filenames for unknown platforms', () => {
-    expect(resolveNativeAddonFilename('plan9' as NodeJS.Platform)[0]).toBe('locate.node');
-  });
-
-  test('throws clear error when no addon exists', () => {
-    const fn = makeRequireWithResolve(
-      () => {
-        throw new Error('should not reach require');
-      },
-      (path) => {
-        throw makeMissingModuleError(path);
-      },
-    );
-    expect(() => createLocateLoader(fn, 'win32')).toThrow(
-      'Cannot load function-location native addon. Searched: ./locate-win.node, ./locate.node.',
-    );
-  });
-
-  test('propagates non-module-not-found errors from resolve', () => {
-    expect(() =>
-      createLocateLoader(
-        makeRequireWithResolve(
-          () => {
-            throw new Error('should not reach require');
-          },
-          () => {
-            throw Object.assign(new Error('invalid package'), { code: 'EACCES' });
-          },
-        ),
-        'linux',
-      ),
-    ).toThrow('invalid package');
-  });
-
-  test('propagates non-module-not-found errors', () => {
-    expect(() =>
-      createLocateLoader(
-        makeRequireWithResolve(() => {
-          throw new Error('addon initialization failed');
-        }),
-        'linux',
-      ),
-    ).toThrow('addon initialization failed');
-  });
-
-  test('skips candidates that are missing but continues to next valid one', () => {
-    const calls: string[] = [];
+  test('loads addon through node-gyp-build from package root', () => {
     const locate = (input: Function): string | undefined => input.name;
+    const nodeGypBuild = jest.fn(() => ({ locate }));
+    const packageDir = path.join(__dirname, '..');
+    const named = function namedForLoaderTest() {};
 
-    const mock = makeRequireWithResolve(
-      (path: string) => {
-        calls.push(`require:${path}`);
-        if (path === './locate-win.node') {
-          throw makeMissingModuleError(path);
-        }
-        return { locate };
-      },
-      (path: string) => {
-        calls.push(`resolve:${path}`);
-        if (path === './locate-win.node') {
-          throw makeMissingModuleError(path);
-        }
-        return path;
-      },
+    const located = createLocateLoader(
+      makeRequireWithResolvedModules({
+        'node-gyp-build': nodeGypBuild,
+      }),
+      packageDir,
     );
 
-    const located = createLocateLoader(mock, 'win32');
-    expect(located).toBe(locate);
-    expect(calls).toEqual([
-      'resolve:./locate-win.node',
-      'resolve:./locate.node',
-      'require:./locate.node',
-    ]);
+    expect(typeof located).toBe('function');
+    expect(located(named as Function)).toBe('namedForLoaderTest');
+    expect(nodeGypBuild).toHaveBeenCalledWith(packageDir);
   });
 
-  test('throws descriptive error when addon export is invalid', () => {
+  test('throws when node-gyp-build is missing', () => {
     expect(() =>
       createLocateLoader(
-        makeRequireWithResolve(() => ({ exports: 'wrong' })),
-        'linux',
+        makeRequireWithResolvedModules({
+          // intentionally missing node-gyp-build
+        }),
+        '/tmp/package-root',
       ),
-    ).toThrow('Native addon does not export locate() in locate.node.');
+    ).toThrow("Cannot find module 'node-gyp-build'");
   });
 
-  test('propagates missing module when resolve path exists', () => {
+  test('throws when addon export is missing locate', () => {
+    const nodeGypBuild = jest.fn(() => ({ notLocate: 'missing' }));
+
     expect(() =>
       createLocateLoader(
-        makeRequireWithResolve(
-          () => {
-            throw Object.assign(new Error('cannot load binary'), { code: 'ERR_DLOPEN_FAILED' });
-          },
-          () => './locate.node',
-        ),
-        'linux',
+        makeRequireWithResolvedModules({
+          'node-gyp-build': nodeGypBuild,
+        }),
+        '/tmp/package-root',
       ),
-    ).toThrow('cannot load binary');
+    ).toThrow('does not export locate()');
   });
 
-  test('propagates MODULE_NOT_FOUND from addon dependency loading', () => {
-    const error = Object.assign(new Error('cannot load dependency'), { code: 'MODULE_NOT_FOUND' });
+  test('throws when locate export has invalid type', () => {
+    const nodeGypBuild = jest.fn(() => ({ locate: 'not-a-function' }));
+
     expect(() =>
       createLocateLoader(
-        makeRequireWithResolve(
-          () => {
-            throw error;
-          },
-          () => './locate.node',
-        ),
-        'linux',
+        makeRequireWithResolvedModules({
+          'node-gyp-build': nodeGypBuild,
+        }),
+        '/tmp/package-root',
       ),
-    ).toThrow('cannot load dependency');
+    ).toThrow('exports locate with invalid type');
   });
-
 });

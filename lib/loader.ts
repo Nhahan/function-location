@@ -1,62 +1,54 @@
+import path from 'node:path';
+
 type RequireFunction = {
   (path: string): unknown;
-  resolve(path: string): string;
 };
 
-type NodeErrnoException = NodeJS.ErrnoException & { code?: unknown };
-
-const ADDON_NAME_BY_PLATFORM: Record<string, string[]> = {
-  win32: ['locate-win.node', 'locate.node'],
-  default: ['locate.node', 'locate-win.node'],
+type NodeGypBuildLoader = (directory: string) => unknown;
+type NativeAddon = {
+  locate?: unknown;
 };
 
-export function resolveNativeAddonFilename(platform = process.platform): string[] {
-  return ADDON_NAME_BY_PLATFORM[platform] ?? ADDON_NAME_BY_PLATFORM.default;
-}
+const DEFAULT_PACKAGE_DIR = path.resolve(__dirname, '..');
 
 export function createLocateLoader(
   requireFn: RequireFunction,
-  platform = process.platform,
+  packageDir = DEFAULT_PACKAGE_DIR,
 ): (input: Function) => string | undefined {
-  const candidates = resolveNativeAddonFilename(platform);
+  const imported = loadNativeAddon(requireFn, packageDir);
 
-  for (const candidate of candidates) {
-    const importPath = `./${candidate}`;
-
-    try {
-      requireFn.resolve(importPath);
-    } catch (error: unknown) {
-      if (isModuleNotFoundError(error)) {
-        continue;
-      }
-      throw error;
-    }
-
-    const imported = requireFn(importPath);
-    if (
-      imported &&
-      typeof imported === 'object' &&
-      'locate' in imported &&
-      typeof (imported as { locate?: unknown }).locate === 'function'
-    ) {
-      return (imported as { locate: (input: Function) => string | undefined }).locate;
-    }
-
-    throw new Error(`Native addon does not export locate() in ${candidate}.`);
+  if (!imported || typeof imported !== 'object' || !('locate' in imported)) {
+    throw new Error(`Native addon loaded from ${packageDir} does not export locate().`);
   }
 
-  const addonCandidates = candidates.map((candidate) => `./${candidate}`).join(', ');
-  throw new Error(
-    `Cannot load function-location native addon. Searched: ${addonCandidates}. ` +
-    'If this is a source checkout, run `npm run build:native` and `npm run copy:native`.',
-  );
+  const { locate } = imported as NativeAddon;
+
+  if (typeof locate !== 'function') {
+    throw new Error(
+      `Native addon loaded from ${packageDir} exports locate with invalid type (${typeof locate}).`,
+    );
+  }
+
+  return locate as (input: Function) => string | undefined;
 }
 
-function isModuleNotFoundError(error: unknown): error is NodeErrnoException {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as NodeErrnoException).code === 'MODULE_NOT_FOUND'
-  );
+function loadNativeAddon(requireFn: RequireFunction, packageDir: string): NativeAddon {
+  const nodeGypBuild = resolveNodeGypBuild(requireFn);
+  const imported = nodeGypBuild(packageDir);
+
+  if (!imported || typeof imported !== 'object') {
+    throw new Error('Loaded native addon does not export an object.');
+  }
+
+  return imported as NativeAddon;
+}
+
+function resolveNodeGypBuild(requireFn: RequireFunction): NodeGypBuildLoader {
+  const nodeGypBuild = requireFn('node-gyp-build');
+
+  if (typeof nodeGypBuild !== 'function') {
+    throw new Error(`node-gyp-build must export a function. Loaded: ${String(typeof nodeGypBuild)}.`);
+  }
+
+  return nodeGypBuild as NodeGypBuildLoader;
 }
