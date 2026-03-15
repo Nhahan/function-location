@@ -1,20 +1,38 @@
 'use strict';
 
-const { spawnSync } = require('node:child_process');
+const { spawnSync } = require('child_process');
 const { buildPrebuildArgs, parsePrebuildArgs } = require('./prebuild-utils');
-const fs = require('node:fs');
-const path = require('node:path');
-const os = require('node:os');
+const fs = require('fs');
+const path = require('path');
 
-function runPrebuild() {
-  const prebuildDir = path.join(process.cwd(), 'prebuilds');
+function resolvePrebuildifyBin(rootDir) {
+  const binPath = path.join(rootDir, 'node_modules', 'prebuildify', 'bin.js');
+
+  if (!fs.existsSync(binPath)) {
+    throw new Error(
+      `prebuildify binary not found at ${binPath}. Run npm install before building prebuilds.`,
+    );
+  }
+
+  return binPath;
+}
+
+function createPrebuildInvocation(options, rootDir) {
+  return {
+    command: process.execPath,
+    args: [resolvePrebuildifyBin(rootDir)].concat(buildPrebuildArgs(options)),
+  };
+}
+
+function runPrebuild(rootDir = process.cwd(), spawn = spawnSync) {
+  const prebuildDir = path.join(rootDir, 'prebuilds');
   fs.rmSync(prebuildDir, { recursive: true, force: true });
 
   const options = parsePrebuildArgs();
-  const args = buildPrebuildArgs(options);
-  const command = path.join(process.cwd(), 'node_modules', '.bin', `prebuildify${os.platform() === 'win32' ? '.cmd' : ''}`);
+  const invocation = createPrebuildInvocation(options, rootDir);
 
-  const result = spawnSync(command, args, {
+  const result = spawn(invocation.command, invocation.args, {
+    cwd: rootDir,
     stdio: 'inherit',
   });
 
@@ -31,4 +49,12 @@ function runPrebuild() {
   }
 }
 
-runPrebuild();
+if (require.main === module) {
+  runPrebuild();
+}
+
+module.exports = {
+  createPrebuildInvocation,
+  resolvePrebuildifyBin,
+  runPrebuild,
+};

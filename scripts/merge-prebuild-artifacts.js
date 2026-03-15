@@ -1,12 +1,47 @@
 'use strict';
 
-const fs = require('node:fs');
-const path = require('node:path');
+const fs = require('fs');
+const path = require('path');
+
+function containsNodeBinary(dir) {
+  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+    return false;
+  }
+
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  return entries.some((entry) => entry.isFile() && entry.name.endsWith('.node'));
+}
+
+function isPrebuildRoot(dir) {
+  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+    return false;
+  }
+
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  let hasPlatformDir = false;
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    hasPlatformDir = true;
+    if (!containsNodeBinary(path.join(dir, entry.name))) {
+      return false;
+    }
+  }
+
+  return hasPlatformDir;
+}
 
 function findPrebuildSources(rootDir) {
   const direct = path.join(rootDir, 'prebuilds');
   if (fs.existsSync(direct) && fs.statSync(direct).isDirectory()) {
     return [direct];
+  }
+
+  if (isPrebuildRoot(rootDir)) {
+    return [rootDir];
   }
 
   const sources = [];
@@ -20,6 +55,11 @@ function findPrebuildSources(rootDir) {
     const prebuildDir = path.join(candidate, 'prebuilds');
     if (fs.existsSync(prebuildDir) && fs.statSync(prebuildDir).isDirectory()) {
       sources.push(prebuildDir);
+      continue;
+    }
+
+    if (isPrebuildRoot(candidate)) {
+      sources.push(candidate);
       continue;
     }
 
@@ -72,4 +112,12 @@ function run() {
   console.log(`Merged prebuild artifacts into ${targetRoot} from ${sources.length} source(s).`);
 }
 
-run();
+if (require.main === module) {
+  run();
+}
+
+module.exports = {
+  containsNodeBinary,
+  findPrebuildSources,
+  isPrebuildRoot,
+};

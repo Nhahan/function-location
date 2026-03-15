@@ -12,9 +12,14 @@
 npm install function-location
 ```
 
-Supports Node.js 8+ via N-API artifacts.
+## Supported runtimes
 
-Current validation coverage includes Node.js 20/22/24 in CI; Node.js 8/10/12/14 support is a compatibility target and should be treated as a deployment target to verify before claiming fully guaranteed in production.
+- Linux `x64`: Node.js `8+`
+- Windows `x64`: Node.js `8+`
+- macOS `x64`: Node.js `8+`
+- macOS `arm64`: Node.js `16+`
+
+The package ships ABI-tagged native prebuilds inside the npm tarball and `node-gyp-build` selects the matching binary automatically.
 
 ## Usage
 
@@ -38,7 +43,7 @@ locateV8(exampleFunction);  // /path/to/file.ts
 
 This library uses a synchronous native addon lookup and does not use inspector protocol.
 
-It is built with N-API so the same prebuilt strategy can run across Node.js 8+ runtimes while keeping installation simple.
+It ships platform- and ABI-tagged prebuilt binaries so supported Node.js majors can install without a postinstall download step.
 
 ![Locating performance (example run)](./docs/benchmark-locateV8.svg)
 
@@ -73,7 +78,7 @@ Results vary by environment; treat them as sample measurements only.
 - Prebuilt artifacts are generated in CI and distributed under `prebuilds/`.
 - `node-gyp-build` loads the matching binary automatically.
 - Artifacts are not committed in git history.
-- For release policy and CI validation details, see [CONTRIBUTING.md](./CONTRIBUTING.md).
+- For release policy, support matrix validation, and CI details, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Links
 

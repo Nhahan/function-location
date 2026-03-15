@@ -23,6 +23,20 @@ function makeArtifactsFixture() {
   return { root, artifactA, artifactB };
 }
 
+function makeMergedArtifactFixture() {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'function-location-release-merged-'));
+  const darwin = path.join(root, 'downloaded-prebuilds', 'darwin-arm64');
+  const win32 = path.join(root, 'downloaded-prebuilds', 'win32-x64');
+
+  mkdirSync(darwin, { recursive: true });
+  mkdirSync(win32, { recursive: true });
+
+  writeFileSync(path.join(darwin, 'locate-arm.node'), 'arm binary');
+  writeFileSync(path.join(win32, 'locate-win.node'), 'win binary');
+
+  return { root };
+}
+
 describe('release scripts', () => {
   test('merge-prebuild-artifacts merges multiple artifact roots', () => {
     const { root, artifactA, artifactB } = makeArtifactsFixture();
@@ -48,6 +62,30 @@ describe('release scripts', () => {
     rmSync(path.join(root, 'merged'), { recursive: true, force: true });
     rmSync(path.join(root, 'artifact-a'), { recursive: true, force: true });
     rmSync(path.join(root, 'artifact-b'), { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  test('merge-prebuild-artifacts accepts flattened download-artifact output', () => {
+    const { root } = makeMergedArtifactFixture();
+
+    const merged = path.join(root, 'merged');
+    const result = spawnSync('node', [SCRIPT_PATH], {
+      env: {
+        ...process.env,
+        PREBUILD_ARTIFACT_ROOT: path.join(root, 'downloaded-prebuilds'),
+        PREBUILD_MERGED_DIR: path.join(merged, 'prebuilds'),
+      },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    const mergedDarwin = readdirSync(path.join(merged, 'prebuilds', 'darwin-arm64'));
+    const mergedWin32 = readdirSync(path.join(merged, 'prebuilds', 'win32-x64'));
+
+    expect(result.status).toBe(0);
+    expect(mergedDarwin).toContain('locate-arm.node');
+    expect(mergedWin32).toContain('locate-win.node');
+
     rmSync(root, { recursive: true, force: true });
   });
 

@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 
 const SCRIPT_PATH = path.join(process.cwd(), 'scripts', 'verify-prebuild-coverage.js');
+const { getCurrentPrebuildDir, getExpectedPrebuildFiles } = require('../scripts/prebuild-utils');
 
 function makeFixture(hasMultiNodeAbi = true) {
   const root = mkdtempSync(path.join(os.tmpdir(), 'function-location-prebuild-'));
@@ -22,6 +23,33 @@ function makeFixture(hasMultiNodeAbi = true) {
     writeFileSync(path.join(darwinDir, 'function-location.abi128.node'), 'binary', { encoding: 'utf8' });
   }
   writeFileSync(path.join(win32Dir, 'function-location.abi127.node'), 'binary', { encoding: 'utf8' });
+
+  return root;
+}
+
+function makeReleasePlanFixture(removeLastLinuxAbi = false) {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'function-location-prebuild-release-'));
+  const prebuildBase = path.join(root, 'merged-prebuilds');
+  const platforms: Array<[string, string]> = [
+    ['darwin', 'arm64'],
+    ['darwin', 'x64'],
+    ['linux', 'x64'],
+    ['win32', 'x64'],
+  ];
+
+  for (const [platform, arch] of platforms) {
+    const platformDir = path.join(prebuildBase, getCurrentPrebuildDir(platform, arch));
+    mkdirSync(platformDir, { recursive: true });
+
+    let expectedFiles = getExpectedPrebuildFiles(platform, arch);
+    if (removeLastLinuxAbi && platform === 'linux' && arch === 'x64') {
+      expectedFiles = expectedFiles.slice(0, -1);
+    }
+
+    for (const file of expectedFiles) {
+      writeFileSync(path.join(platformDir, file), 'binary', { encoding: 'utf8' });
+    }
+  }
 
   return root;
 }
@@ -59,5 +87,24 @@ describe('verify-prebuild-coverage', () => {
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain('Missing prebuild coverage');
+  });
+
+  test('passes when the full release ABI matrix is present', () => {
+    const root = makeReleasePlanFixture(false);
+
+    const result = runCoverage([`--base-dir=${root}/merged-prebuilds`, '--release-plan']);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Verified release prebuild coverage');
+  });
+
+  test('fails when a release ABI entry is missing', () => {
+    const root = makeReleasePlanFixture(true);
+
+    const result = runCoverage([`--base-dir=${root}/merged-prebuilds`, '--release-plan']);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('Release prebuild coverage mismatch');
+    expect(result.stderr).toContain('linux-x64');
   });
 });

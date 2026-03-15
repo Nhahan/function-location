@@ -3,6 +3,10 @@ name: Release
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.dry_run }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
     inputs:
@@ -18,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Enforce release branch
         run: |
@@ -27,6 +31,30 @@ jobs:
             GITHUB_REF=${{ github.ref }} \
             node ./scripts/verify-release-branch.js
 
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    needs: guard
+    outputs:
+      prebuild_matrix: ${{ steps.prebuild_matrix.outputs.json }}
+      compat_matrix: ${{ steps.compat_matrix.outputs.json }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.14.0
+
+      - name: Resolve prebuild matrix
+        id: prebuild_matrix
+        run: echo "json=$(node ./scripts/workflow-matrix.js prebuild)" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve compatibility matrix
+        id: compat_matrix
+        run: echo "json=$(node ./scripts/workflow-matrix.js compat)" >> "$GITHUB_OUTPUT"
+
   test:
     name: test-${{ matrix.os }}-node-${{ matrix.node-version }}
     runs-on: ${{ matrix.os }}
@@ -34,14 +62,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
-        node-version: [20.x, 22.x]
+        os: [ubuntu-latest, windows-latest, macos-15]
+        node-version: [16.x, 20.x, 22.x, 24.x]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
@@ -53,55 +81,89 @@ jobs:
       - name: Run test suite
         run: npm test -- --runInBand
 
-  prebuild:
-    name: prebuild-${{ matrix.os }}-node-${{ matrix.node-version }}
+  pack-verify:
+    name: pack-${{ matrix.os }}-node-16.x
     runs-on: ${{ matrix.os }}
     needs: guard
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
-        node-version: [20.x, 22.x]
+        os: [ubuntu-latest, windows-latest, macos-15]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 16.x
           cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Build native artifact
-        run: npm run build:all
+      - name: Build TypeScript artifacts
+        run: npm run build
+
+      - name: Build local prebuilds for tarball verification
+        run: npm run build:prebuilds
+
+      - name: Verify package tarball
+        run: npm run verify:pack
+
+  prebuild:
+    name: prebuild-${{ matrix.platformDir }}-node-${{ matrix.nodeVersion }}
+    runs-on: ${{ matrix.runner }}
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.prebuild_matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.nodeVersion }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build TypeScript artifacts
+        run: npm run build
 
       - name: Build platform prebuild
-        run: npm run prebuild
+        env:
+          PREBUILD_TARGETS: ${{ matrix.prebuildTargets }}
+        run: npm run build:prebuilds
 
       - name: Verify prebuild platform artifact
+        env:
+          PREBUILD_TARGETS: ${{ matrix.prebuildTargets }}
         run: npm run verify:prebuild
 
       - name: Upload prebuild artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: prebuild-${{ matrix.os }}-node-${{ matrix.node-version }}
+          name: prebuild-${{ matrix.platformDir }}
           path: prebuilds
           if-no-files-found: error
 
   prebuild-coverage:
     name: prebuild-coverage
     runs-on: ubuntu-latest
-    needs: [prebuild]
+    needs: prebuild
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download prebuild artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: prebuild-*
           path: downloaded-prebuilds
@@ -110,47 +172,133 @@ jobs:
       - name: Merge prebuild artifacts
         run: PREBUILD_ARTIFACT_ROOT=downloaded-prebuilds PREBUILD_MERGED_DIR=merged-prebuilds node ./scripts/merge-prebuild-artifacts.js
 
-      - name: Verify prebuild cross-platform coverage
-        run: node ./scripts/verify-prebuild-coverage.js --base-dir=merged-prebuilds --required='darwin-arm64|darwin-x64,linux-x64|linux-arm64,win32-x64' --required-min=2
+      - name: Verify prebuild release coverage
+        run: node ./scripts/verify-prebuild-coverage.js --base-dir=merged-prebuilds --release-plan
 
-  publish:
-    name: publish
+      - name: Upload merged prebuild artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: merged-prebuilds
+          path: merged-prebuilds
+          if-no-files-found: error
+
+  package:
+    name: package
     runs-on: ubuntu-latest
-    needs: [test, prebuild-coverage]
+    needs: [test, pack-verify, prebuild-coverage]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22.x
+          node-version: 24.14.0
           cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Download prebuild artifacts
-        uses: actions/download-artifact@v4
+      - name: Download merged prebuild artifact
+        uses: actions/download-artifact@v8
         with:
-          pattern: prebuild-*
-          path: downloaded-prebuilds
-          merge-multiple: true
+          name: merged-prebuilds
+          path: .
 
-      - name: Merge prebuild artifacts
-        run: PREBUILD_ARTIFACT_ROOT=downloaded-prebuilds PREBUILD_MERGED_DIR=prebuilds node ./scripts/merge-prebuild-artifacts.js
+      - name: Prepare merged prebuild directory
+        run: |
+          rm -rf prebuilds
+          mv merged-prebuilds prebuilds
 
-      - name: Prepare release package
-        run: npm run release:prepare
+      - name: Pack release tarball
+        env:
+          FUNCTION_LOCATION_PREBUILDS_READY: '1'
+        run: npm pack --silent
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-package
+          path: "*.tgz"
+          if-no-files-found: error
+
+  compatibility:
+    name: compat-${{ matrix.compatibilityLabel }}-node-${{ matrix.nodeVersion }}
+    runs-on: ${{ matrix.runner }}
+    needs: [plan, package]
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.compat_matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.nodeVersion }}
+          architecture: ${{ matrix.nodeArchitecture }}
+
+      - name: Download package artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: release-package
+          path: artifacts
+
+      - name: Install packed package and run smoke test
+        shell: bash
+        run: |
+          tarball="$(find artifacts -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+          if [ -z "$tarball" ]; then
+            echo "Release tarball was not downloaded."
+            exit 1
+          fi
+
+          node ./scripts/run-compat-smoke.js \
+            --tarball="$tarball" \
+            --expected-node-arch="${{ matrix.nodeArchitecture }}" \
+            --expected-host-arm64="${{ matrix.expectedHostArm64 }}" \
+            --expected-translated="${{ matrix.expectedTranslated }}"
+
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    needs: [compatibility]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.14.0
+
+      - name: Download package artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: release-package
+          path: artifacts
 
       - name: Resolve release package metadata
         id: release_metadata
         run: |
-          echo "name=$(node -p \"require('./package.json').name\")" >> "$GITHUB_OUTPUT"
-          echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+          package_name="$(node -p "require('./package.json').name")"
+          package_version="$(node -p "require('./package.json').version")"
+          tarball_path="$(find "$PWD/artifacts" -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+
+          if [ -z "$tarball_path" ]; then
+            echo "Release tarball was not downloaded."
+            exit 1
+          fi
+
+          echo "name=$package_name" >> "$GITHUB_OUTPUT"
+          echo "version=$package_version" >> "$GITHUB_OUTPUT"
+          echo "tarball=$tarball_path" >> "$GITHUB_OUTPUT"
 
       - name: Verify release version is new
+        if: ${{ !inputs.dry_run }}
         run: |
           if npm view "${{ steps.release_metadata.outputs.name }}@${{ steps.release_metadata.outputs.version }}" version >/tmp/npm-view.out 2>/tmp/npm-view.err; then
             echo "${{ steps.release_metadata.outputs.name }}@${{ steps.release_metadata.outputs.version }} already exists on npm."
@@ -164,29 +312,46 @@ jobs:
             exit 1
           fi
 
-      - name: Verify release branch
-        env:
-          RELEASE_BRANCH: dev
-          GITHUB_REF: ${{ github.ref }}
-          RELEASE_DRY_RUN: ${{ inputs.dry_run }}
-        run: node ./scripts/verify-release-branch.js
+      - name: Skip version uniqueness check for dry run
+        if: ${{ inputs.dry_run }}
+        run: echo "Dry run enabled; skipping npm version uniqueness enforcement."
 
       - name: Build .npm auth config
-        if: ${{ inputs.dry_run != 'true' }}
+        if: ${{ !inputs.dry_run }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "NPM_TOKEN is not set.";
-            exit 1;
+            echo "NPM_TOKEN is not set."
+            exit 1
           fi
           echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > "$RUNNER_TEMP/npmrc"
           echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/npmrc" >> "$GITHUB_ENV"
 
       - name: Dry run publish
-        if: ${{ inputs.dry_run == 'true' }}
-        run: npm publish --access public --dry-run
+        if: ${{ inputs.dry_run }}
+        run: |
+          dry_run_dir="$(mktemp -d)"
+          tar -xzf "${{ steps.release_metadata.outputs.tarball }}" -C "$dry_run_dir"
+          package_dir="$dry_run_dir/package"
+          package_json="$package_dir/package.json"
+
+          node - "$package_json" "${{ steps.release_metadata.outputs.version }}" "${{ github.run_id }}" <<'EOF'
+          const fs = require('fs');
+
+          const packageJsonPath = process.argv[2];
+          const version = process.argv[3];
+          const runId = process.argv[4];
+          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+          packageJson.version = version.includes('-')
+            ? `${version}.dryrun.${runId}`
+            : `${version}-dryrun.${runId}`;
+          fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+          console.log(`Dry-run publish version: ${packageJson.version}`);
+          EOF
+
+          npm publish "$package_dir" --access public --dry-run --ignore-scripts --tag dry-run
 
       - name: Publish package
-        if: ${{ inputs.dry_run != 'true' }}
-        run: npm publish --access public
+        if: ${{ !inputs.dry_run }}
+        run: npm publish "${{ steps.release_metadata.outputs.tarball }}" --access public

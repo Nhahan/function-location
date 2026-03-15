@@ -1,7 +1,15 @@
 'use strict';
 
-const fs = require('node:fs');
-const path = require('node:path');
+const fs = require('fs');
+const path = require('path');
+const { getCurrentPrebuildDir, getExpectedPrebuildFiles } = require('./prebuild-utils');
+
+const RELEASE_PREBUILD_PLATFORMS = [
+  ['darwin', 'arm64'],
+  ['darwin', 'x64'],
+  ['linux', 'x64'],
+  ['win32', 'x64'],
+];
 
 function parseRequired(argv = process.argv.slice(2)) {
   const requiredArg = argv.find((item) => item.startsWith('--required='));
@@ -33,6 +41,10 @@ function parseRequiredMinBinaries(argv = process.argv.slice(2)) {
   }
 
   return value;
+}
+
+function parseReleasePlan(argv = process.argv.slice(2)) {
+  return argv.includes('--release-plan') || process.env.PREBUILD_RELEASE_PLAN === '1';
 }
 
 function nodeBinaryCount(dir) {
@@ -97,11 +109,68 @@ function findPrebuildDirs(baseDir) {
   return Array.from(roots);
 }
 
+function getCoverageRoot(baseDir) {
+  const nested = path.join(baseDir, 'prebuilds');
+  if (fs.existsSync(nested) && fs.statSync(nested).isDirectory()) {
+    return nested;
+  }
+
+  return baseDir;
+}
+
+function verifyReleasePlan(baseDir) {
+  const coverageRoot = getCoverageRoot(baseDir);
+  const failures = [];
+
+  for (const [platform, arch] of RELEASE_PREBUILD_PLATFORMS) {
+    const platformDirName = getCurrentPrebuildDir(platform, arch);
+    const platformDir = path.join(coverageRoot, platformDirName);
+    const expected = getExpectedPrebuildFiles(platform, arch).sort();
+    const actual = isPrebuildDirectory(platformDir)
+      ? fs.readdirSync(platformDir).filter((entry) => entry.endsWith('.node')).sort()
+      : [];
+
+    const missing = expected.filter((file) => !actual.includes(file));
+    const unexpected = actual.filter((file) => !expected.includes(file));
+
+    if (missing.length > 0 || unexpected.length > 0) {
+      const detail = [];
+
+      if (missing.length > 0) {
+        detail.push(`missing ${missing.join(', ')}`);
+      }
+
+      if (unexpected.length > 0) {
+        detail.push(`unexpected ${unexpected.join(', ')}`);
+      }
+
+      failures.push(`${platformDirName}: ${detail.join('; ')}`);
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`Release prebuild coverage mismatch: ${failures.join(' | ')}`);
+  }
+}
+
 function main() {
   const requiredGroups = parseRequired();
   const baseDir = parseBaseDir();
   const requiredMinBinaries = parseRequiredMinBinaries();
+  const releasePlan = parseReleasePlan();
   const prebuildDirs = findPrebuildDirs(baseDir);
+
+  if (releasePlan) {
+    try {
+      verifyReleasePlan(baseDir);
+    } catch (error) {
+      console.error(error.message);
+      process.exit(1);
+    }
+
+    console.log('Verified release prebuild coverage across the configured platform matrix.');
+    return;
+  }
 
   if (requiredGroups.length === 0) {
     if (prebuildDirs.length === 0) {

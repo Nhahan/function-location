@@ -19,7 +19,7 @@
     "build": "tsc",
     "build:native": "node ./scripts/build-native.js",
     "install": "node-gyp-build",
-    "prebuild": "node ./scripts/prebuild.js",
+    "build:prebuilds": "node ./scripts/prebuild.js",
     "verify:prebuild": "node ./scripts/verify-prebuild.js",
     "verify:prebuild:coverage": "node ./scripts/verify-prebuild-coverage.js",
     "verify:pack": "node ./scripts/verify-pack-tarball.js",
@@ -27,7 +27,7 @@
     "release:merge-prebuilds": "node ./scripts/merge-prebuild-artifacts.js",
     "release:prepare": "npm run build:all && npm run verify:pack",
     "release:prepare:ci": "npm run build && npm run verify:pack",
-    "prepack": "npm run build:all && npm run prebuild && npm run verify:pack",
+    "prepack": "node ./scripts/run-prepack.js",
     "test": "node ./scripts/run-tests.js",
     "bench:compare": "node ./scripts/benchmark-comparison.js"
   },
