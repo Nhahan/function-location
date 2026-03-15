@@ -1,0 +1,45 @@
+{
+  "rootPackageName": "function-location",
+  "supportedNodeTargets": [
+    { "major": 16, "version": "16.20.2", "abi": "93" },
+    { "major": 18, "version": "18.20.8", "abi": "108" },
+    { "major": 20, "version": "20.20.1", "abi": "115" },
+    { "major": 22, "version": "22.22.1", "abi": "127" },
+    { "major": 24, "version": "24.14.0", "abi": "137" }
+  ],
+  "platformPackages": [
+    {
+      "name": "function-location-linux-x64",
+      "dir": "packages/function-location-linux-x64",
+      "platform": "linux",
+      "arch": "x64",
+      "os": ["linux"],
+      "cpu": ["x64"],
+      "libc": ["glibc"]
+    },
+    {
+      "name": "function-location-win32-x64",
+      "dir": "packages/function-location-win32-x64",
+      "platform": "win32",
+      "arch": "x64",
+      "os": ["win32"],
+      "cpu": ["x64"]
+    },
+    {
+      "name": "function-location-darwin-x64",
+      "dir": "packages/function-location-darwin-x64",
+      "platform": "darwin",
+      "arch": "x64",
+      "os": ["darwin"],
+      "cpu": ["x64"]
+    },
+    {
+      "name": "function-location-darwin-arm64",
+      "dir": "packages/function-location-darwin-arm64",
+      "platform": "darwin",
+      "arch": "arm64",
+      "os": ["darwin"],
+      "cpu": ["arm64"]
+    }
+  ]
+}

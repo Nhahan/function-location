@@ -5,6 +5,15 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
+function parsePackageDir(argv = process.argv.slice(2), cwd = process.cwd()) {
+  const arg = argv.find((item) => item.startsWith('--package-dir='));
+  if (!arg) {
+    return cwd;
+  }
+
+  return path.resolve(cwd, arg.slice('--package-dir='.length));
+}
+
 function cleanupTarball(tarballPath) {
   if (!tarballPath) return;
   if (!fs.existsSync(tarballPath)) return;
@@ -15,19 +24,69 @@ function cleanupTarball(tarballPath) {
   }
 }
 
-function createPackInvocation(env = process.env) {
+function resolveNpmCliPath(execPath = process.execPath) {
+  const nodeDir = path.dirname(execPath);
+  const candidates = [
+    path.resolve(nodeDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.resolve(nodeDir, '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.resolve(nodeDir, '..', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function createPackInvocation(env = process.env, execPath = process.execPath) {
   const args = ['pack', '--json', '--silent', '--ignore-scripts'];
 
-  if (env.npm_execpath) {
+  const npmExecPath = env.npm_execpath || resolveNpmCliPath(execPath);
+
+  if (npmExecPath) {
     return {
-      command: process.execPath,
-      args: [env.npm_execpath].concat(args),
+      command: execPath,
+      args: [npmExecPath].concat(args),
     };
   }
 
   return {
     command: process.platform === 'win32' ? 'npm.cmd' : 'npm',
     args,
+  };
+}
+
+function packStagedPackage(stagingDir, executor = execFileSync, env = process.env) {
+  let packMetadataRaw;
+  const invocation = createPackInvocation(env);
+
+  try {
+    packMetadataRaw = executor(invocation.command, invocation.args, {
+      cwd: stagingDir,
+      encoding: 'utf8',
+    });
+  } catch (error) {
+    throw new Error(`npm pack failed: ${error.message}`);
+  }
+
+  let manifest;
+  try {
+    const packMetadata = JSON.parse(packMetadataRaw);
+    manifest = Array.isArray(packMetadata) ? packMetadata[0] : packMetadata;
+  } catch (error) {
+    throw new Error('Failed to parse npm pack --json output.');
+  }
+
+  if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.files)) {
+    throw new Error('Unexpected npm pack output shape.');
+  }
+
+  return {
+    manifest,
+    tarballPath: manifest.filename ? path.join(stagingDir, manifest.filename) : null,
   };
 }
 
@@ -64,6 +123,67 @@ function copyRequiredEntry(rootDir, stagingDir, requiredFile) {
   fs.copyFileSync(sourcePath, destinationPath);
 }
 
+function findStandardMetadataFile(rootDir, prefixes) {
+  if (!fs.existsSync(rootDir) || !fs.statSync(rootDir).isDirectory()) {
+    return null;
+  }
+
+  const entries = fs.readdirSync(rootDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    const lowerName = entry.name.toLowerCase();
+    if (prefixes.some((prefix) => lowerName === prefix || lowerName.startsWith(`${prefix}.`))) {
+      return entry.name;
+    }
+  }
+
+  return null;
+}
+
+function getMetadataSourceDirectories(rootDir) {
+  const sources = [rootDir];
+  const parentDir = path.dirname(rootDir);
+  const grandparentDir = path.dirname(parentDir);
+
+  if (path.basename(parentDir) === 'packages' && grandparentDir !== rootDir) {
+    sources.push(grandparentDir);
+  }
+
+  return sources;
+}
+
+function copyStandardMetadata(rootDir, stagingDir) {
+  const metadataDefinitions = [
+    ['readme'],
+    ['license', 'licence'],
+  ];
+
+  for (const prefixes of metadataDefinitions) {
+    let copied = false;
+
+    for (const sourceDir of getMetadataSourceDirectories(rootDir)) {
+      const matchedFile = findStandardMetadataFile(sourceDir, prefixes);
+      if (!matchedFile) {
+        continue;
+      }
+
+      const sourcePath = path.join(sourceDir, matchedFile);
+      const destinationPath = path.join(stagingDir, matchedFile);
+      fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+      fs.copyFileSync(sourcePath, destinationPath);
+      copied = true;
+      break;
+    }
+
+    if (copied) {
+      continue;
+    }
+  }
+}
+
 function stagePackDirectory(rootDir, packageJson, stagingDir) {
   const stagedPackageJson = {
     ...packageJson,
@@ -81,6 +201,8 @@ function stagePackDirectory(rootDir, packageJson, stagingDir) {
   for (const requiredFile of requiredFiles) {
     copyRequiredEntry(rootDir, stagingDir, requiredFile);
   }
+
+  copyStandardMetadata(rootDir, stagingDir);
 }
 
 function verifyPackTarball(rootDir = process.cwd(), executor = execFileSync, env = process.env) {
@@ -97,29 +219,8 @@ function verifyPackTarball(rootDir = process.cwd(), executor = execFileSync, env
 
   try {
     stagePackDirectory(rootDir, packageJson, stagingDir);
-
-    let packMetadataRaw;
-    const invocation = createPackInvocation(env);
-    try {
-      packMetadataRaw = executor(invocation.command, invocation.args, {
-        cwd: stagingDir,
-        encoding: 'utf8',
-      });
-    } catch (error) {
-      throw new Error(`npm pack failed: ${error.message}`);
-    }
-
-    let manifest;
-    try {
-      const packMetadata = JSON.parse(packMetadataRaw);
-      manifest = Array.isArray(packMetadata) ? packMetadata[0] : packMetadata;
-    } catch (error) {
-      throw new Error('Failed to parse npm pack --json output.');
-    }
-
-    if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.files)) {
-      throw new Error('Unexpected npm pack output shape.');
-    }
+    const packed = packStagedPackage(stagingDir, executor, env);
+    const manifest = packed.manifest;
 
     const includedPaths = new Set(manifest.files.map((entry) => entry.path));
     const missingFiles = requiredFiles.filter((file) => !matchesRequiredFile(file, includedPaths));
@@ -128,7 +229,7 @@ function verifyPackTarball(rootDir = process.cwd(), executor = execFileSync, env
       throw new Error(`Missing files in package tarball: ${missingFiles.join(', ')}`);
     }
 
-    tarballPath = manifest.filename ? path.join(stagingDir, manifest.filename) : null;
+    tarballPath = packed.tarballPath;
     return manifest;
   } finally {
     cleanupTarball(tarballPath);
@@ -136,9 +237,9 @@ function verifyPackTarball(rootDir = process.cwd(), executor = execFileSync, env
   }
 }
 
-function main() {
+function main(argv = process.argv.slice(2)) {
   try {
-    verifyPackTarball();
+    verifyPackTarball(parsePackageDir(argv));
     console.log('Package tarball includes required files.');
   } catch (error) {
     console.error(error.message);
@@ -182,10 +283,16 @@ if (require.main === module) {
 module.exports = {
   copyRequiredEntry,
   createPackInvocation,
+  copyStandardMetadata,
+  findStandardMetadataFile,
+  getMetadataSourceDirectories,
   getRequiredEntryPath,
   matchesDirectory,
   matchesRequiredFile,
   normalizePath,
+  packStagedPackage,
+  parsePackageDir,
+  resolveNpmCliPath,
   stagePackDirectory,
   verifyPackTarball,
 };

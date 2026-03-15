@@ -9,15 +9,21 @@ var path = require('path');
 
 function parseArgs(argv) {
   var options = {
-    tarball: '',
+    rootTarball: '',
+    platformTarball: '',
     expectedNodeArch: '',
     expectedHostArm64: '',
     expectedTranslated: '',
   };
 
   argv.forEach(function (arg) {
-    if (arg.indexOf('--tarball=') === 0) {
-      options.tarball = arg.slice('--tarball='.length);
+    if (arg.indexOf('--root-tarball=') === 0) {
+      options.rootTarball = arg.slice('--root-tarball='.length);
+      return;
+    }
+
+    if (arg.indexOf('--platform-tarball=') === 0) {
+      options.platformTarball = arg.slice('--platform-tarball='.length);
       return;
     }
 
@@ -159,22 +165,33 @@ function assertRuntimeContext(options) {
 }
 
 function runCompatibilitySmoke(options) {
-  if (!options.tarball) {
-    throw new Error('Missing required --tarball argument.');
+  if (!options.rootTarball) {
+    throw new Error('Missing required --root-tarball argument.');
+  }
+
+  if (!options.platformTarball) {
+    throw new Error('Missing required --platform-tarball argument.');
   }
 
   assertRuntimeContext(options);
 
   var tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'function-location-compat-'));
-  var tarballPath = path.resolve(options.tarball);
-  var packageTarball = path.join(tempDir, 'package.tgz');
+  var rootTarball = path.resolve(options.rootTarball);
+  var platformTarball = path.resolve(options.platformTarball);
+  var rootPackageTarball = path.join(tempDir, 'function-location-root.tgz');
+  var platformPackageTarball = path.join(tempDir, 'function-location-platform.tgz');
   var smokeScript = path.join(tempDir, 'smoke.js');
   var npmCommand = getNpmCommandSpec();
 
   try {
-    fs.copyFileSync(tarballPath, packageTarball);
+    fs.copyFileSync(rootTarball, rootPackageTarball);
+    fs.copyFileSync(platformTarball, platformPackageTarball);
     runCommand(npmCommand.command, npmCommand.args.concat(['init', '-y']), tempDir);
-    runCommand(npmCommand.command, npmCommand.args.concat(['install', packageTarball]), tempDir);
+    runCommand(
+      npmCommand.command,
+      npmCommand.args.concat(['install', platformPackageTarball, rootPackageTarball]),
+      tempDir,
+    );
     writeSmokeScript(smokeScript);
     process.stdout.write(runCommand(process.execPath, [smokeScript], tempDir));
   } finally {

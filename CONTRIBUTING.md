@@ -1,61 +1,44 @@
 # Contributing
 
-This project uses a strict branch and release strategy to keep npm releases deterministic.
-
 ## Branches
 
-- `dev` is the release branch.
-- `main` is the integration/validation branch.
-- `ci-verify/<topic>` is the temporary validation branch.
-- Releases are never published from `main`.
+- `main` is the default branch.
+- `dev` is the release branch. npm publish is allowed only from `dev`.
+- `ci-verify/<topic>` is the temporary branch for workflow validation.
 
-Use `ci-verify/<topic>` for workflow-heavy validation:
+If a workflow change needs GitHub Actions verification, validate it on `ci-verify/<topic>` first and squash that branch back down before moving it onto `dev`.
 
-```bash
-git checkout -b ci-verify/<topic>
-git push -u origin ci-verify/<topic>
-```
+## Runtime support
 
-- For release behavior verification, run `gh workflow run Release -f dry_run=true`.
-- Iterate and fix on `ci-verify/<topic>` until all runs pass.
-- Merge only the validated changes back to `main`/`dev`.
+- Public package: `function-location`
+- Supported Node.js versions: `16.x`, `18.x`, `20.x`, `22.x`, `24.x`
+- Published platform packages:
+  - `function-location-linux-x64` (`glibc`)
+  - `function-location-win32-x64`
+  - `function-location-darwin-x64`
+  - `function-location-darwin-arm64`
 
-## Workflow Scope
+The root npm package ships only the JS wrapper and metadata. Native binaries are published as platform-specific optional packages, so consumers download only the matching runtime package instead of the entire cross-platform binary set.
 
-- `CI` is optimized for feedback speed:
-  - maintainer test matrix across `macos-15`, `ubuntu-latest`, `windows-latest` and Node `16.x`, `20.x`, `22.x`, `24.x`
-  - package/tarball verification once per OS on Node `16.x`
-  - full multi-platform prebuild generation and release-coverage validation
-- `Release` keeps the full publish gate on `dev`.
-- `ci-verify/*` is allowed only when `dry_run=true`.
-- npm publish is blocked if `${name}@${version}` already exists.
-- Release compatibility matrix:
-- `linux-x64`: `8.17.0`, `10.24.1`, `12.22.12`, `14.21.3`, `16.20.2`, `18.20.8`, `20.20.1`, `22.22.1`, `24.14.0`
-- `win32-x64`: `8.17.0`, `10.24.1`, `12.22.12`, `14.21.3`, `16.20.2`, `18.20.8`, `20.20.1`, `22.22.1`, `24.14.0`
-- `darwin-x64`: `8.17.0`, `10.24.1`, `12.22.12`, `14.21.3`, `16.20.2`, `18.20.8`, `20.20.1`, `22.22.1`, `24.14.0`
-- `darwin-x64` on Apple Silicon via Rosetta: `8.17.0`, `10.24.1`, `12.22.12`, `14.21.3`, `16.20.2`, `18.20.8`, `20.20.1`, `22.22.1`, `24.14.0`
-- `darwin-arm64`: `16.20.2`, `18.20.8`, `20.20.1`, `22.22.1`, `24.14.0`
+## CI and release
 
-## Packaging Policy
+- `CI` is the fast feedback workflow:
+  - maintainer test matrix on Linux, Windows, and macOS across Node `20/22/24`
+  - root package tarball verification once per OS on Node `20`
+  - platform prebuild generation and platform package tarball verification
+  - compatibility smoke tests across Node `16/18/20/22/24`
+- `Release` is the publish gate:
+  - same maintainer test matrix
+  - platform package tarballs are built first
+  - the root package tarball is built separately
+  - compatibility smoke tests install the root tarball plus the matching platform tarball across Node `16/18/20/22/24`
+  - publish order is platform packages first, then the root package
 
-- Prebuild artifacts are generated only in CI and release jobs.
-- Generated `.node` binaries are not committed to git history.
-- Release uses the merged CI prebuild artifact for packaging and publish. It does not regenerate single-platform prebuilds at the final npm publish step.
-- Custom tooling must avoid reserved npm lifecycle script names. The project uses `build:prebuilds`, not `prebuild`, so merged release artifacts cannot be clobbered silently.
+`Release` dry-runs are allowed from `ci-verify/*`. Real publishes are restricted to `dev`.
 
-## Technical Notes
+## Packaging notes
 
-- `locate` uses a synchronous native binding that reads function metadata from runtime internals (`GetScriptOrigin`), not inspector protocol.
-- The addon entrypoint uses Node-API, but the implementation still depends on V8 internals. Release artifacts are therefore shipped as ABI-tagged prebuilds, not as one cross-major N-API binary.
-- Current ABI set: `abi57`, `abi64`, `abi72`, `abi83`, `abi93`, `abi108`, `abi115`, `abi127`, `abi137`.
-
-## Release Readiness Checklist
-
-Before running release:
-
-- `npm test -- --runInBand`
-- `FUNCTION_LOCATION_PREBUILDS_READY=1 npm pack --silent` after merged prebuilds are present
-- CI + prebuild coverage jobs pass for all configured Node versions
-- version in `package.json` is incremented
-- branch is `dev`
-- only verified `ci-verify/*` branches are used for dry-run validation
+- Generated `.node` binaries are CI artifacts only and must not be committed.
+- The root package depends on exact-version `optionalDependencies` for the platform packages. Keep those versions aligned.
+- Repository installs should use `npm install --omit=optional` because the platform packages are release artifacts, not local workspace dependencies.
+- The public API is `locate()`. Internal runtime details such as V8 access should not leak into the exported API surface.

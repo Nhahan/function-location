@@ -37,6 +37,7 @@ jobs:
     needs: guard
     outputs:
       prebuild_matrix: ${{ steps.prebuild_matrix.outputs.json }}
+      package_matrix: ${{ steps.package_matrix.outputs.json }}
       compat_matrix: ${{ steps.compat_matrix.outputs.json }}
     steps:
       - name: Checkout
@@ -51,6 +52,10 @@ jobs:
         id: prebuild_matrix
         run: echo "json=$(node ./scripts/workflow-matrix.js prebuild)" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve package matrix
+        id: package_matrix
+        run: echo "json=$(node ./scripts/workflow-matrix.js package)" >> "$GITHUB_OUTPUT"
+
       - name: Resolve compatibility matrix
         id: compat_matrix
         run: echo "json=$(node ./scripts/workflow-matrix.js compat)" >> "$GITHUB_OUTPUT"
@@ -63,7 +68,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-15]
-        node-version: [16.x, 20.x, 22.x, 24.x]
+        node-version: [20.x, 22.x, 24.x]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -76,19 +81,15 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci
+        run: npm install --omit=optional --no-audit --no-fund
 
       - name: Run test suite
         run: npm test -- --runInBand
 
-  pack-verify:
-    name: pack-${{ matrix.os }}-node-16.x
-    runs-on: ${{ matrix.os }}
+  root-package:
+    name: package-root
+    runs-on: ubuntu-latest
     needs: guard
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-15]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -96,24 +97,32 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 16.x
+          node-version: 20.x
           cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci
+        run: npm install --omit=optional --no-audit --no-fund
 
       - name: Build TypeScript artifacts
         run: npm run build
 
-      - name: Build local prebuilds for tarball verification
-        run: npm run build:prebuilds
-
-      - name: Verify package tarball
+      - name: Verify root package tarball
         run: npm run verify:pack
 
+      - name: Create root package tarball
+        run: node ./scripts/create-package-tarball.js --out-dir=artifacts
+
+      - name: Upload root package artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-function-location
+          path: artifacts/*.tgz
+          compression-level: 0
+          if-no-files-found: error
+
   prebuild:
-    name: prebuild-${{ matrix.platformDir }}-node-${{ matrix.nodeVersion }}
+    name: prebuild-${{ matrix.packageName }}-abi${{ matrix.abi }}
     runs-on: ${{ matrix.runner }}
     needs: plan
     strategy:
@@ -127,65 +136,38 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: ${{ matrix.nodeVersion }}
+          node-version: ${{ matrix.hostNodeVersion }}
           cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci
+        run: npm install --omit=optional --no-audit --no-fund
 
-      - name: Build TypeScript artifacts
-        run: npm run build
+      - name: Build platform prebuilds
+        run: npm run build:prebuilds -- --package=${{ matrix.packageName }} --target=${{ matrix.targetNodeVersion }}
 
-      - name: Build platform prebuild
+      - name: Verify platform prebuilds
         env:
-          PREBUILD_TARGETS: ${{ matrix.prebuildTargets }}
-        run: npm run build:prebuilds
-
-      - name: Verify prebuild platform artifact
-        env:
-          PREBUILD_TARGETS: ${{ matrix.prebuildTargets }}
-        run: npm run verify:prebuild
+          PREBUILD_TARGETS: ${{ matrix.targetNodeVersion }}
+          PREBUILD_VERIFY_SMOKE: '0'
+        run: npm run verify:prebuild -- --package=${{ matrix.packageName }}
 
       - name: Upload prebuild artifact
         uses: actions/upload-artifact@v7
         with:
-          name: prebuild-${{ matrix.platformDir }}
-          path: prebuilds
+          name: ${{ matrix.artifactName }}
+          path: ${{ matrix.packageDir }}/prebuilds/${{ matrix.platformDir }}/*.node
+          compression-level: 0
           if-no-files-found: error
 
-  prebuild-coverage:
-    name: prebuild-coverage
+  platform-package:
+    name: package-${{ matrix.packageName }}
     runs-on: ubuntu-latest
-    needs: prebuild
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Download prebuild artifacts
-        uses: actions/download-artifact@v8
-        with:
-          pattern: prebuild-*
-          path: downloaded-prebuilds
-          merge-multiple: true
-
-      - name: Merge prebuild artifacts
-        run: PREBUILD_ARTIFACT_ROOT=downloaded-prebuilds PREBUILD_MERGED_DIR=merged-prebuilds node ./scripts/merge-prebuild-artifacts.js
-
-      - name: Verify prebuild release coverage
-        run: node ./scripts/verify-prebuild-coverage.js --base-dir=merged-prebuilds --release-plan
-
-      - name: Upload merged prebuild artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: merged-prebuilds
-          path: merged-prebuilds
-          if-no-files-found: error
-
-  package:
-    name: package
-    runs-on: ubuntu-latest
-    needs: [test, pack-verify, prebuild-coverage]
+    needs: [plan, prebuild]
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.package_matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -193,40 +175,38 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
-          cache: npm
-          cache-dependency-path: package-lock.json
+          node-version: ${{ matrix.nodeVersion }}
 
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Download merged prebuild artifact
+      - name: Download prebuild artifacts
         uses: actions/download-artifact@v8
         with:
-          name: merged-prebuilds
-          path: .
+          pattern: ${{ matrix.artifactPattern }}
+          path: ${{ matrix.packageDir }}/prebuilds/${{ matrix.platformDir }}
+          merge-multiple: true
 
-      - name: Prepare merged prebuild directory
-        run: |
-          rm -rf prebuilds
-          mv merged-prebuilds prebuilds
-
-      - name: Pack release tarball
+      - name: Verify platform prebuilds
         env:
-          FUNCTION_LOCATION_PREBUILDS_READY: '1'
-        run: npm pack --silent
+          PREBUILD_VERIFY_SMOKE: '0'
+        run: npm run verify:prebuild -- --package=${{ matrix.packageName }}
 
-      - name: Upload package artifact
+      - name: Verify platform package tarball
+        run: node ./scripts/verify-pack-tarball.js --package-dir=${{ matrix.packageDir }}
+
+      - name: Create platform package tarball
+        run: node ./scripts/create-package-tarball.js --package-dir=${{ matrix.packageDir }} --out-dir=artifacts
+
+      - name: Upload platform package artifact
         uses: actions/upload-artifact@v7
         with:
-          name: release-package
-          path: "*.tgz"
+          name: package-${{ matrix.packageName }}
+          path: artifacts/*.tgz
+          compression-level: 0
           if-no-files-found: error
 
   compatibility:
     name: compat-${{ matrix.compatibilityLabel }}-node-${{ matrix.nodeVersion }}
     runs-on: ${{ matrix.runner }}
-    needs: [plan, package]
+    needs: [plan, root-package, platform-package]
     strategy:
       fail-fast: false
       matrix:
@@ -241,23 +221,32 @@ jobs:
           node-version: ${{ matrix.nodeVersion }}
           architecture: ${{ matrix.nodeArchitecture }}
 
-      - name: Download package artifact
+      - name: Download root package artifact
         uses: actions/download-artifact@v8
         with:
-          name: release-package
-          path: artifacts
+          name: package-function-location
+          path: artifacts/root
 
-      - name: Install packed package and run smoke test
+      - name: Download platform package artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: package-${{ matrix.packageName }}
+          path: artifacts/platform
+
+      - name: Install packed packages and run smoke test
         shell: bash
         run: |
-          tarball="$(find artifacts -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
-          if [ -z "$tarball" ]; then
-            echo "Release tarball was not downloaded."
+          root_tarball="$(find artifacts/root -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+          platform_tarball="$(find artifacts/platform -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+
+          if [ -z "$root_tarball" ] || [ -z "$platform_tarball" ]; then
+            echo "Required tarball artifacts were not downloaded."
             exit 1
           fi
 
           node ./scripts/run-compat-smoke.js \
-            --tarball="$tarball" \
+            --root-tarball="$root_tarball" \
+            --platform-tarball="$platform_tarball" \
             --expected-node-arch="${{ matrix.nodeArchitecture }}" \
             --expected-host-arm64="${{ matrix.expectedHostArm64 }}" \
             --expected-translated="${{ matrix.expectedTranslated }}"
@@ -265,7 +254,7 @@ jobs:
   publish:
     name: publish
     runs-on: ubuntu-latest
-    needs: [compatibility]
+    needs: compatibility
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -275,42 +264,51 @@ jobs:
         with:
           node-version: 24.14.0
 
-      - name: Download package artifact
+      - name: Download package artifacts
         uses: actions/download-artifact@v8
         with:
-          name: release-package
+          pattern: package-*
           path: artifacts
 
-      - name: Resolve release package metadata
-        id: release_metadata
+      - name: Verify package metadata alignment
+        id: package_metadata
         run: |
-          package_name="$(node -p "require('./package.json').name")"
-          package_version="$(node -p "require('./package.json').version")"
-          tarball_path="$(find "$PWD/artifacts" -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+          packages_json="$(node ./scripts/package-metadata.js)"
+          root_name="$(node -p "require('./package.json').name")"
+          root_version="$(node -p "require('./package.json').version")"
+          publish_tag="$(node -p "require('./package.json').version.includes('-') ? 'next' : 'latest'")"
 
-          if [ -z "$tarball_path" ]; then
-            echo "Release tarball was not downloaded."
-            exit 1
-          fi
+          printf '%s\n' "$packages_json" > "$RUNNER_TEMP/release-packages.json"
 
-          echo "name=$package_name" >> "$GITHUB_OUTPUT"
-          echo "version=$package_version" >> "$GITHUB_OUTPUT"
-          echo "tarball=$tarball_path" >> "$GITHUB_OUTPUT"
+          echo "root_name=$root_name" >> "$GITHUB_OUTPUT"
+          echo "root_version=$root_version" >> "$GITHUB_OUTPUT"
+          echo "publish_tag=$publish_tag" >> "$GITHUB_OUTPUT"
 
-      - name: Verify release version is new
+      - name: Verify release versions are new
         if: ${{ !inputs.dry_run }}
         run: |
-          if npm view "${{ steps.release_metadata.outputs.name }}@${{ steps.release_metadata.outputs.version }}" version >/tmp/npm-view.out 2>/tmp/npm-view.err; then
-            echo "${{ steps.release_metadata.outputs.name }}@${{ steps.release_metadata.outputs.version }} already exists on npm."
-            echo "Publish would overwrite an existing release. Bump package.json version before retrying."
-            exit 1
-          fi
+          node - "$RUNNER_TEMP/release-packages.json" <<'EOF' > "$RUNNER_TEMP/release-package-specs.txt"
+          const fs = require('fs');
 
-          if ! grep -q "E404" /tmp/npm-view.err; then
-            echo "Failed to verify npm version availability."
-            cat /tmp/npm-view.err
-            exit 1
-          fi
+          const packageSpecs = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          for (const entry of packageSpecs) {
+            console.log(`${entry.name}@${entry.version}`);
+          }
+          EOF
+
+          while IFS= read -r spec; do
+            if npm view "$spec" version >/tmp/npm-view.out 2>/tmp/npm-view.err; then
+              echo "$spec already exists on npm."
+              echo "Publish would overwrite an existing release. Bump package versions before retrying."
+              exit 1
+            fi
+
+            if ! grep -q "E404" /tmp/npm-view.err; then
+              echo "Failed to verify npm version availability for $spec."
+              cat /tmp/npm-view.err
+              exit 1
+            fi
+          done < "$RUNNER_TEMP/release-package-specs.txt"
 
       - name: Skip version uniqueness check for dry run
         if: ${{ inputs.dry_run }}
@@ -330,28 +328,72 @@ jobs:
 
       - name: Dry run publish
         if: ${{ inputs.dry_run }}
+        shell: bash
         run: |
-          dry_run_dir="$(mktemp -d)"
-          tar -xzf "${{ steps.release_metadata.outputs.tarball }}" -C "$dry_run_dir"
-          package_dir="$dry_run_dir/package"
-          package_json="$package_dir/package.json"
-
-          node - "$package_json" "${{ steps.release_metadata.outputs.version }}" "${{ github.run_id }}" <<'EOF'
+          dry_run_suffix="dryrun.${GITHUB_RUN_ID}"
+          root_tarball="$(find "artifacts/package-function-location" -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+          mapfile -t platform_names < <(node - "$RUNNER_TEMP/release-packages.json" <<'EOF'
           const fs = require('fs');
 
-          const packageJsonPath = process.argv[2];
-          const version = process.argv[3];
-          const runId = process.argv[4];
-          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-          packageJson.version = version.includes('-')
-            ? `${version}.dryrun.${runId}`
-            : `${version}-dryrun.${runId}`;
-          fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
-          console.log(`Dry-run publish version: ${packageJson.version}`);
+          const packages = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          for (const entry of packages.slice(1)) {
+            console.log(entry.name);
+          }
           EOF
+          )
 
-          npm publish "$package_dir" --access public --dry-run --ignore-scripts --tag dry-run
+          if [ -z "$root_tarball" ] || [ "${#platform_names[@]}" -eq 0 ]; then
+            echo "Release tarball artifacts are incomplete."
+            exit 1
+          fi
 
-      - name: Publish package
+          rm -rf "$RUNNER_TEMP/dry-run-publish"
+          mkdir -p "$RUNNER_TEMP/dry-run-publish"
+
+          for package_name in "${platform_names[@]}"; do
+            tarball="$(find "artifacts/package-$package_name" -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+            if [ -z "$tarball" ]; then
+              echo "Missing tarball for $package_name."
+              exit 1
+            fi
+            staging_dir="$RUNNER_TEMP/dry-run-publish/$package_name"
+            rm -rf "$staging_dir"
+            prepared_dir="$(node ./scripts/prepare-dry-run-publish.js --tarball="$tarball" --out-dir="$staging_dir" --version-suffix="$dry_run_suffix")"
+            npm publish "$prepared_dir" --access public --dry-run --ignore-scripts --tag dry-run
+          done
+
+          root_staging_dir="$RUNNER_TEMP/dry-run-publish/function-location"
+          rm -rf "$root_staging_dir"
+          prepared_root_dir="$(node ./scripts/prepare-dry-run-publish.js --tarball="$root_tarball" --out-dir="$root_staging_dir" --version-suffix="$dry_run_suffix")"
+          npm publish "$prepared_root_dir" --access public --dry-run --ignore-scripts --tag dry-run
+
+      - name: Publish packages
         if: ${{ !inputs.dry_run }}
-        run: npm publish "${{ steps.release_metadata.outputs.tarball }}" --access public
+        shell: bash
+        run: |
+          root_tarball="$(find "artifacts/package-function-location" -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+          mapfile -t platform_names < <(node - "$RUNNER_TEMP/release-packages.json" <<'EOF'
+          const fs = require('fs');
+
+          const packages = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          for (const entry of packages.slice(1)) {
+            console.log(entry.name);
+          }
+          EOF
+          )
+
+          if [ -z "$root_tarball" ] || [ "${#platform_names[@]}" -eq 0 ]; then
+            echo "Release tarball artifacts are incomplete."
+            exit 1
+          fi
+
+          for package_name in "${platform_names[@]}"; do
+            tarball="$(find "artifacts/package-$package_name" -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+            if [ -z "$tarball" ]; then
+              echo "Missing tarball for $package_name."
+              exit 1
+            fi
+            npm publish "$tarball" --access public --tag "${{ steps.package_metadata.outputs.publish_tag }}"
+          done
+
+          npm publish "$root_tarball" --access public --tag "${{ steps.package_metadata.outputs.publish_tag }}"

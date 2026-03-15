@@ -4,13 +4,15 @@ describe('run-compat-smoke', () => {
   test('parses compatibility smoke arguments', () => {
     expect(
       parseArgs([
-        '--tarball=/tmp/function-location.tgz',
+        '--root-tarball=/tmp/function-location.tgz',
+        '--platform-tarball=/tmp/function-location-darwin-arm64.tgz',
         '--expected-node-arch=x64',
         '--expected-host-arm64=1',
         '--expected-translated=1',
       ]),
     ).toEqual({
-      tarball: '/tmp/function-location.tgz',
+      rootTarball: '/tmp/function-location.tgz',
+      platformTarball: '/tmp/function-location-darwin-arm64.tgz',
       expectedNodeArch: 'x64',
       expectedHostArm64: '1',
       expectedTranslated: '1',

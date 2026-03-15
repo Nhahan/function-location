@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       prebuild_matrix: ${{ steps.prebuild_matrix.outputs.json }}
+      package_matrix: ${{ steps.package_matrix.outputs.json }}
+      compat_matrix: ${{ steps.compat_matrix.outputs.json }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -31,6 +33,14 @@ jobs:
         id: prebuild_matrix
         run: echo "json=$(node ./scripts/workflow-matrix.js prebuild)" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve package matrix
+        id: package_matrix
+        run: echo "json=$(node ./scripts/workflow-matrix.js package)" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve compatibility matrix
+        id: compat_matrix
+        run: echo "json=$(node ./scripts/workflow-matrix.js compat)" >> "$GITHUB_OUTPUT"
+
   test:
     name: test-${{ matrix.os }}-node-${{ matrix.node-version }}
     runs-on: ${{ matrix.os }}
@@ -38,7 +48,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-15]
-        node-version: [16.x, 20.x, 22.x, 24.x]
+        node-version: [20.x, 22.x, 24.x]
 
     steps:
       - name: Checkout
@@ -52,18 +62,18 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci
+        run: npm install --omit=optional --no-audit --no-fund
 
       - name: Run test suite
         run: npm test -- --runInBand
 
   pack-verify:
-    name: pack-${{ matrix.os }}-node-16.x
+    name: pack-${{ matrix.os }}-node-20.x
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-15]
+        os: [windows-latest, macos-15]
 
     steps:
       - name: Checkout
@@ -72,24 +82,56 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 16.x
+          node-version: 20.x
           cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci
+        run: npm install --omit=optional --no-audit --no-fund
 
       - name: Build TypeScript artifacts
         run: npm run build
 
-      - name: Build local prebuilds for tarball verification
-        run: npm run build:prebuilds
-
-      - name: Verify package tarball
+      - name: Verify root package tarball
         run: npm run verify:pack
 
+  root-package:
+    name: package-root
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install npm dependencies
+        run: npm install --omit=optional --no-audit --no-fund
+
+      - name: Build TypeScript artifacts
+        run: npm run build
+
+      - name: Verify root package tarball
+        run: npm run verify:pack
+
+      - name: Create root package tarball
+        run: node ./scripts/create-package-tarball.js --out-dir=artifacts
+
+      - name: Upload root package artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-function-location
+          path: artifacts/*.tgz
+          compression-level: 0
+          if-no-files-found: error
+
   prebuild:
-    name: prebuild-${{ matrix.platformDir }}-node-${{ matrix.nodeVersion }}
+    name: prebuild-${{ matrix.packageName }}-abi${{ matrix.abi }}
     runs-on: ${{ matrix.runner }}
     needs: plan
     strategy:
@@ -104,65 +146,39 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: ${{ matrix.nodeVersion }}
+          node-version: ${{ matrix.hostNodeVersion }}
           cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci
+        run: npm install --omit=optional --no-audit --no-fund
 
-      - name: Build TypeScript artifacts
-        run: npm run build
+      - name: Build platform prebuilds
+        run: npm run build:prebuilds -- --package=${{ matrix.packageName }} --target=${{ matrix.targetNodeVersion }}
 
-      - name: Build platform prebuild
+      - name: Verify platform prebuilds
         env:
-          PREBUILD_TARGETS: ${{ matrix.prebuildTargets }}
-        run: npm run build:prebuilds
-
-      - name: Verify prebuild platform artifact
-        env:
-          PREBUILD_TARGETS: ${{ matrix.prebuildTargets }}
-        run: npm run verify:prebuild
+          PREBUILD_TARGETS: ${{ matrix.targetNodeVersion }}
+          PREBUILD_VERIFY_SMOKE: '0'
+        run: npm run verify:prebuild -- --package=${{ matrix.packageName }}
 
       - name: Upload prebuild artifact
         uses: actions/upload-artifact@v7
         with:
-          name: prebuild-${{ matrix.platformDir }}
-          path: prebuilds
+          name: ${{ matrix.artifactName }}
+          path: ${{ matrix.packageDir }}/prebuilds/${{ matrix.platformDir }}/*.node
+          compression-level: 0
           if-no-files-found: error
 
-  prebuild-coverage:
-    name: prebuild-coverage
+  platform-package:
+    name: package-${{ matrix.packageName }}
     runs-on: ubuntu-latest
-    needs: prebuild
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+    needs: [plan, prebuild]
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.package_matrix) }}
 
-      - name: Download prebuild artifacts
-        uses: actions/download-artifact@v8
-        with:
-          pattern: prebuild-*
-          path: downloaded-prebuilds
-          merge-multiple: true
-
-      - name: Merge prebuild artifacts
-        run: PREBUILD_ARTIFACT_ROOT=downloaded-prebuilds PREBUILD_MERGED_DIR=merged-prebuilds node ./scripts/merge-prebuild-artifacts.js
-
-      - name: Verify prebuild release coverage
-        run: node ./scripts/verify-prebuild-coverage.js --base-dir=merged-prebuilds --release-plan
-
-      - name: Upload merged prebuild artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: merged-prebuilds
-          path: merged-prebuilds
-          if-no-files-found: error
-
-  package:
-    name: package
-    runs-on: ubuntu-latest
-    needs: [test, pack-verify, prebuild-coverage]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -170,25 +186,79 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
-          cache: npm
-          cache-dependency-path: package-lock.json
+          node-version: ${{ matrix.nodeVersion }}
 
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Download merged prebuild artifact
+      - name: Download prebuild artifacts
         uses: actions/download-artifact@v8
         with:
-          name: merged-prebuilds
-          path: .
+          pattern: ${{ matrix.artifactPattern }}
+          path: ${{ matrix.packageDir }}/prebuilds/${{ matrix.platformDir }}
+          merge-multiple: true
 
-      - name: Prepare merged prebuild directory
-        run: |
-          rm -rf prebuilds
-          mv merged-prebuilds prebuilds
-
-      - name: Pack release tarball
+      - name: Verify platform prebuilds
         env:
-          FUNCTION_LOCATION_PREBUILDS_READY: '1'
-        run: npm pack --silent
+          PREBUILD_VERIFY_SMOKE: '0'
+        run: npm run verify:prebuild -- --package=${{ matrix.packageName }}
+
+      - name: Verify platform package tarball
+        run: node ./scripts/verify-pack-tarball.js --package-dir=${{ matrix.packageDir }}
+
+      - name: Create platform package tarball
+        run: node ./scripts/create-package-tarball.js --package-dir=${{ matrix.packageDir }} --out-dir=artifacts
+
+      - name: Upload platform package artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ matrix.packageName }}
+          path: artifacts/*.tgz
+          compression-level: 0
+          if-no-files-found: error
+
+  compatibility:
+    name: compat-${{ matrix.compatibilityLabel }}-node-${{ matrix.nodeVersion }}
+    runs-on: ${{ matrix.runner }}
+    needs: [plan, root-package, platform-package]
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.compat_matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.nodeVersion }}
+          architecture: ${{ matrix.nodeArchitecture }}
+
+      - name: Download root package artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: package-function-location
+          path: artifacts/root
+
+      - name: Download platform package artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: package-${{ matrix.packageName }}
+          path: artifacts/platform
+
+      - name: Install packed packages and run smoke test
+        shell: bash
+        run: |
+          root_tarball="$(find artifacts/root -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+          platform_tarball="$(find artifacts/platform -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+
+          if [ -z "$root_tarball" ] || [ -z "$platform_tarball" ]; then
+            echo "Required tarball artifacts were not downloaded."
+            exit 1
+          fi
+
+          node ./scripts/run-compat-smoke.js \
+            --root-tarball="$root_tarball" \
+            --platform-tarball="$platform_tarball" \
+            --expected-node-arch="${{ matrix.nodeArchitecture }}" \
+            --expected-host-arm64="${{ matrix.expectedHostArm64 }}" \
+            --expected-translated="${{ matrix.expectedTranslated }}"

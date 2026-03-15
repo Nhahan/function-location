@@ -1,0 +1,32 @@
+{
+  "name": "function-location-linux-x64",
+  "version": "1.0.0",
+  "description": "Linux x64 (glibc) native binaries for function-location.",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "prebuilds/**"
+  ],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "glibc"
+  ],
+  "engines": {
+    "node": ">=16 <25"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/Nhahan/function-location",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nhahan/function-location.git",
+    "directory": "packages/function-location-linux-x64"
+  },
+  "dependencies": {
+    "node-gyp-build": "^4.8.4"
+  }
+}

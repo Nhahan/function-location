@@ -7,12 +7,8 @@ const path = require('path');
 
 const rootDir = path.resolve(__dirname, '..');
 
-function getPrepackScripts(env = process.env) {
-  if (env.FUNCTION_LOCATION_PREBUILDS_READY === '1') {
-    return ['build', 'verify:pack'];
-  }
-
-  return ['build:all', 'build:prebuilds', 'verify:pack'];
+function getPrepackScripts() {
+  return ['build', 'verify:pack'];
 }
 
 function runNpmScript(scriptName, env = process.env) {
@@ -36,7 +32,7 @@ function runNpmScript(scriptName, env = process.env) {
 }
 
 function main(env = process.env) {
-  const scripts = getPrepackScripts(env);
+  const scripts = getPrepackScripts();
 
   for (const scriptName of scripts) {
     runNpmScript(scriptName, env);

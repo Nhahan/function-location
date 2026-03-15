@@ -1,21 +1,8 @@
 const { getPrepackScripts } = require('../scripts/run-prepack');
 
 describe('run-prepack', () => {
-  test('uses the local build pipeline by default', () => {
-    expect(getPrepackScripts({ npm_execpath: '/tmp/npm-cli.js' })).toEqual([
-      'build:all',
-      'build:prebuilds',
-      'verify:pack',
-    ]);
-  });
-
-  test('skips prebuild regeneration when merged release artifacts are already prepared', () => {
-    expect(
-      getPrepackScripts({
-        npm_execpath: '/tmp/npm-cli.js',
-        FUNCTION_LOCATION_PREBUILDS_READY: '1',
-      }),
-    ).toEqual(['build', 'verify:pack']);
+  test('prepacks only the public root package assets', () => {
+    expect(getPrepackScripts()).toEqual(['build', 'verify:pack']);
   });
 
   test('package metadata does not define the reserved npm prebuild lifecycle', () => {

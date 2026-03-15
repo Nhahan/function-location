@@ -5,6 +5,9 @@ import path from 'node:path';
 const {
   createPackInvocation,
   getRequiredEntryPath,
+  parsePackageDir,
+  resolveNpmCliPath,
+  stagePackDirectory,
   verifyPackTarball,
 } = require('../scripts/verify-pack-tarball');
 
@@ -22,20 +25,34 @@ describe('verify-pack-tarball', () => {
     ]);
   });
 
-  test('falls back to the platform npm command outside npm-run environments', () => {
+  test('falls back to the resolved npm cli path outside npm-run environments', () => {
     const invocation = createPackInvocation({});
+    const npmCliPath = resolveNpmCliPath();
 
-    expect(invocation.command).toBe(process.platform === 'win32' ? 'npm.cmd' : 'npm');
-    expect(invocation.args).toEqual(['pack', '--json', '--silent', '--ignore-scripts']);
+    expect(invocation.command).toBe(process.execPath);
+    expect(invocation.args).toEqual([
+      npmCliPath,
+      'pack',
+      '--json',
+      '--silent',
+      '--ignore-scripts',
+    ]);
   });
 
   test('normalizes package file entries before staging', () => {
-    expect(getRequiredEntryPath('dist/index.js')).toBe('dist/index.js');
+    expect(getRequiredEntryPath('dist/lib/index.js')).toBe('dist/lib/index.js');
     expect(getRequiredEntryPath('prebuilds/**')).toBe('prebuilds');
+    expect(getRequiredEntryPath('dist/config/package-layout.json')).toBe('dist/config/package-layout.json');
     expect(getRequiredEntryPath('dist/')).toBe('dist');
   });
 
-  test('validates the tarball manifest against package files', () => {
+  test('resolves a package directory override from argv', () => {
+    expect(parsePackageDir(['--package-dir=packages/function-location-linux-x64'])).toBe(
+      path.join(process.cwd(), 'packages/function-location-linux-x64'),
+    );
+  });
+
+  test('validates the root package tarball manifest against package files', () => {
     const root = mkdtempSync(path.join(os.tmpdir(), 'function-location-pack-'));
     const executed: Array<{
       command: string;
@@ -46,16 +63,16 @@ describe('verify-pack-tarball', () => {
     writeFileSync(
       path.join(root, 'package.json'),
       JSON.stringify({
-        files: ['dist/index.js', 'prebuilds/**'],
+        files: ['dist/lib/index.js', 'dist/config/package-layout.json'],
         scripts: {
           prepack: 'node ./scripts/verify-pack-tarball.js',
         },
       }),
     );
-    mkdirSync(path.join(root, 'dist'), { recursive: true });
-    mkdirSync(path.join(root, 'prebuilds', 'darwin-arm64'), { recursive: true });
-    writeFileSync(path.join(root, 'dist', 'index.js'), 'module.exports = {};');
-    writeFileSync(path.join(root, 'prebuilds', 'darwin-arm64', 'locate.node'), 'fake-binary');
+    mkdirSync(path.join(root, 'dist', 'lib'), { recursive: true });
+    mkdirSync(path.join(root, 'dist', 'config'), { recursive: true });
+    writeFileSync(path.join(root, 'dist', 'lib', 'index.js'), 'module.exports = {};');
+    writeFileSync(path.join(root, 'dist', 'config', 'package-layout.json'), '{}');
 
     expect(() =>
       verifyPackTarball(
@@ -71,8 +88,8 @@ describe('verify-pack-tarball', () => {
             {
               filename: 'function-location-1.0.0.tgz',
               files: [
-                { path: 'dist/index.js' },
-                { path: 'prebuilds/darwin-arm64/locate.node' },
+                { path: 'dist/lib/index.js' },
+                { path: 'dist/config/package-layout.json' },
               ],
             },
           ]);
@@ -95,30 +112,80 @@ describe('verify-pack-tarball', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  test('fails when required package files are missing from the tarball manifest', () => {
+  test('stages LICENSE metadata for workspace-style platform packages', () => {
+    const repoRoot = mkdtempSync(path.join(os.tmpdir(), 'function-location-pack-metadata-'));
+    const packageDir = path.join(repoRoot, 'packages', 'function-location-linux-x64');
+    const stagingDir = mkdtempSync(path.join(os.tmpdir(), 'function-location-pack-staging-'));
+    const packageJson = {
+      files: ['index.js'],
+    };
+
+    mkdirSync(packageDir, { recursive: true });
+    writeFileSync(path.join(repoRoot, 'LICENSE'), 'MIT');
+    writeFileSync(path.join(packageDir, 'index.js'), 'module.exports = {};');
+
+    stagePackDirectory(packageDir, packageJson, stagingDir);
+
+    expect(readFileSync(path.join(stagingDir, 'LICENSE'), 'utf8')).toBe('MIT');
+
+    rmSync(repoRoot, { recursive: true, force: true });
+    rmSync(stagingDir, { recursive: true, force: true });
+  });
+
+  test('validates the platform package tarball manifest against package files', () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), 'function-location-pack-platform-'));
+
+    writeFileSync(
+      path.join(root, 'package.json'),
+      JSON.stringify({
+        files: ['index.js', 'prebuilds/**'],
+      }),
+    );
+    mkdirSync(path.join(root, 'prebuilds', 'linux-x64'), { recursive: true });
+    writeFileSync(path.join(root, 'index.js'), 'module.exports = {};');
+    writeFileSync(path.join(root, 'prebuilds', 'linux-x64', 'locate.node'), 'fake-binary');
+
+    expect(() =>
+      verifyPackTarball(root, () =>
+        JSON.stringify([
+          {
+            filename: 'function-location-linux-x64-1.0.0.tgz',
+            files: [
+              { path: 'index.js' },
+              { path: 'prebuilds/linux-x64/locate.node' },
+            ],
+          },
+        ]),
+      ),
+    ).not.toThrow();
+
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  test('fails when required root package files are missing from the tarball manifest', () => {
     const root = mkdtempSync(path.join(os.tmpdir(), 'function-location-pack-'));
 
     writeFileSync(
       path.join(root, 'package.json'),
       JSON.stringify({
-        files: ['dist/index.js', 'prebuilds/**'],
+        files: ['dist/lib/index.js', 'dist/config/package-layout.json'],
       }),
     );
-    mkdirSync(path.join(root, 'dist'), { recursive: true });
-    mkdirSync(path.join(root, 'prebuilds', 'darwin-arm64'), { recursive: true });
-    writeFileSync(path.join(root, 'dist', 'index.js'), 'module.exports = {};');
-    writeFileSync(path.join(root, 'prebuilds', 'darwin-arm64', 'locate.node'), 'fake-binary');
+    mkdirSync(path.join(root, 'dist', 'lib'), { recursive: true });
+    mkdirSync(path.join(root, 'dist', 'config'), { recursive: true });
+    writeFileSync(path.join(root, 'dist', 'lib', 'index.js'), 'module.exports = {};');
+    writeFileSync(path.join(root, 'dist', 'config', 'package-layout.json'), '{}');
 
     expect(() =>
       verifyPackTarball(root, () =>
         JSON.stringify([
           {
             filename: 'function-location-1.0.0.tgz',
-            files: [{ path: 'dist/index.js' }],
+            files: [{ path: 'dist/lib/index.js' }],
           },
         ]),
       ),
-    ).toThrow(/Missing files in package tarball: prebuilds\/\*\*/);
+    ).toThrow(/Missing files in package tarball: dist\/config\/package-layout\.json/);
 
     rmSync(root, { recursive: true, force: true });
   });

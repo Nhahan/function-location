@@ -1,9 +1,27 @@
 'use strict';
 
 const { spawnSync } = require('child_process');
-const { buildPrebuildArgs, parsePrebuildArgs } = require('./prebuild-utils');
 const fs = require('fs');
 const path = require('path');
+const {
+  buildPrebuildArgs,
+  getCurrentPlatformPackage,
+  getPlatformPackageByName,
+  getPlatformPackageDir,
+  getReleasePrebuildTargets,
+  getRootPackageName,
+  parsePrebuildArgs,
+} = require('./prebuild-utils');
+
+function parsePlatformPackageName(argv = process.argv.slice(2), env = process.env) {
+  const directArg = argv.find((item) => item.startsWith('--package='));
+  const raw = directArg ? directArg.slice('--package='.length) : env.FUNCTION_LOCATION_PLATFORM_PACKAGE;
+  return raw ? raw.trim() : '';
+}
+
+function hasExplicitTargets(argv = process.argv.slice(2), env = process.env) {
+  return argv.some((item) => item.startsWith('--target=') || item.startsWith('--targets=')) || !!env.PREBUILD_TARGETS;
+}
 
 function resolvePrebuildifyBin(rootDir) {
   const binPath = path.join(rootDir, 'node_modules', 'prebuildify', 'bin.js');
@@ -17,22 +35,60 @@ function resolvePrebuildifyBin(rootDir) {
   return binPath;
 }
 
-function createPrebuildInvocation(options, rootDir) {
+function resolvePlatformPackage(argv = process.argv.slice(2), env = process.env) {
+  const explicitName = parsePlatformPackageName(argv, env);
+  if (!explicitName) {
+    return getCurrentPlatformPackage();
+  }
+
+  const resolved = getPlatformPackageByName(explicitName);
+  if (!resolved) {
+    throw new Error(`Unknown platform package: ${explicitName}`);
+  }
+
+  return resolved;
+}
+
+function createPrebuildInvocation(options, platformPackage, rootDir, env = process.env) {
+  const packageDir = getPlatformPackageDir(platformPackage, rootDir);
+  const args = [
+    resolvePrebuildifyBin(rootDir),
+    rootDir,
+    '--out',
+    packageDir,
+    '--name',
+    getRootPackageName(),
+  ].concat(buildPrebuildArgs(options));
+
   return {
     command: process.execPath,
-    args: [resolvePrebuildifyBin(rootDir)].concat(buildPrebuildArgs(options)),
+    args,
+    cwd: rootDir,
+    env: {
+      ...env,
+      PREBUILD_PLATFORM: platformPackage.platform,
+      PREBUILD_ARCH: platformPackage.arch,
+      ...(platformPackage.libc ? { PREBUILD_LIBC: platformPackage.libc[0] } : {}),
+    },
+    packageDir,
   };
 }
 
-function runPrebuild(rootDir = process.cwd(), spawn = spawnSync) {
-  const prebuildDir = path.join(rootDir, 'prebuilds');
+function runPrebuild(rootDir = process.cwd(), spawn = spawnSync, argv = process.argv.slice(2), env = process.env) {
+  const platformPackage = resolvePlatformPackage(argv, env);
+  const packageDir = getPlatformPackageDir(platformPackage, rootDir);
+  const prebuildDir = path.join(packageDir, 'prebuilds');
   fs.rmSync(prebuildDir, { recursive: true, force: true });
 
-  const options = parsePrebuildArgs();
-  const invocation = createPrebuildInvocation(options, rootDir);
+  const options = parsePrebuildArgs(argv, env);
+  if (!hasExplicitTargets(argv, env)) {
+    options.targets = getReleasePrebuildTargets();
+  }
 
+  const invocation = createPrebuildInvocation(options, platformPackage, rootDir, env);
   const result = spawn(invocation.command, invocation.args, {
-    cwd: rootDir,
+    cwd: invocation.cwd,
+    env: invocation.env,
     stdio: 'inherit',
   });
 
@@ -47,6 +103,11 @@ function runPrebuild(rootDir = process.cwd(), spawn = spawnSync) {
     console.error(`prebuildify exited with code ${code}${signal}`);
     process.exit(code);
   }
+
+  return {
+    packageDir,
+    platformPackage,
+  };
 }
 
 if (require.main === module) {
@@ -55,6 +116,9 @@ if (require.main === module) {
 
 module.exports = {
   createPrebuildInvocation,
+  parsePlatformPackageName,
+  hasExplicitTargets,
+  resolvePlatformPackage,
   resolvePrebuildifyBin,
   runPrebuild,
 };

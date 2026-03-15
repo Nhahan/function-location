@@ -1,0 +1,29 @@
+{
+  "name": "function-location-darwin-arm64",
+  "version": "1.0.0",
+  "description": "macOS arm64 native binaries for function-location.",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "prebuilds/**"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "engines": {
+    "node": ">=16 <25"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/Nhahan/function-location",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nhahan/function-location.git",
+    "directory": "packages/function-location-darwin-arm64"
+  },
+  "dependencies": {
+    "node-gyp-build": "^4.8.4"
+  }
+}

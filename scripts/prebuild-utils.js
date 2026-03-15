@@ -1,24 +1,13 @@
 'use strict';
 
-const NODE_VERSION_PATTERN = /^(?<major>\d+)(?:\.(?<minor>\d+)(?:\.(?<patch>\d+))?)?(?:\.x)?$/;
-const SUPPORTED_NODE_TARGETS = Object.freeze([
-  { major: 8, version: '8.17.0', abi: '57' },
-  { major: 10, version: '10.24.1', abi: '64' },
-  { major: 12, version: '12.22.12', abi: '72' },
-  { major: 14, version: '14.21.3', abi: '83' },
-  { major: 16, version: '16.20.2', abi: '93' },
-  { major: 18, version: '18.20.8', abi: '108' },
-  { major: 20, version: '20.20.1', abi: '115' },
-  { major: 22, version: '22.22.1', abi: '127' },
-  { major: 24, version: '24.14.0', abi: '137' },
-]);
+const path = require('path');
+const layout = require('../config/package-layout.json');
 
-const RELEASE_PREBUILD_MINIMUM_MAJOR = Object.freeze({
-  'darwin-arm64': 16,
-  'darwin-x64': 8,
-  'linux-x64': 8,
-  'win32-x64': 8,
-});
+const NODE_VERSION_PATTERN = /^(?<major>\d+)(?:\.(?<minor>\d+)(?:\.(?<patch>\d+))?)?(?:\.x)?$/;
+
+const SUPPORTED_NODE_TARGETS = Object.freeze(layout.supportedNodeTargets.map((target) => ({ ...target })));
+const PLATFORM_PACKAGES = Object.freeze(layout.platformPackages.map((entry) => ({ ...entry })));
+const ROOT_PACKAGE_NAME = layout.rootPackageName;
 
 function parseNodeVersion(version) {
   const parsed = version.split('.');
@@ -33,6 +22,52 @@ function parseNodeVersion(version) {
   return { major, minor, patch };
 }
 
+function getRootPackageName() {
+  return ROOT_PACKAGE_NAME;
+}
+
+function getSupportedNodeTargets() {
+  return SUPPORTED_NODE_TARGETS.map((target) => ({ ...target }));
+}
+
+function getPlatformPackages() {
+  return PLATFORM_PACKAGES.map((entry) => ({ ...entry }));
+}
+
+function getPlatformPackageByName(name) {
+  const found = PLATFORM_PACKAGES.find((entry) => entry.name === name);
+  return found ? { ...found } : null;
+}
+
+function getPlatformPackageByRuntime(platform = process.platform, arch = process.arch) {
+  const found = PLATFORM_PACKAGES.find((entry) => entry.platform === platform && entry.arch === arch);
+  return found ? { ...found } : null;
+}
+
+function getCurrentPlatformPackage(platform = process.platform, arch = process.arch) {
+  const found = getPlatformPackageByRuntime(platform, arch);
+
+  if (!found) {
+    throw new Error(`Unsupported platform package target: ${platform}-${arch}`);
+  }
+
+  return found;
+}
+
+function getCurrentPrebuildDir(platform = process.platform, arch = process.arch) {
+  return `${platform}-${arch}`;
+}
+
+function getPlatformPackageDir(entry, rootDir = process.cwd()) {
+  const platformPackage = typeof entry === 'string' ? getPlatformPackageByName(entry) : entry;
+
+  if (!platformPackage) {
+    throw new Error(`Unknown platform package: ${String(entry)}`);
+  }
+
+  return path.join(rootDir, platformPackage.dir);
+}
+
 function normalizeTarget(target, currentVersion) {
   const current = parseNodeVersion(currentVersion);
   const match = NODE_VERSION_PATTERN.exec(target);
@@ -42,9 +77,10 @@ function normalizeTarget(target, currentVersion) {
   }
 
   const major = Number.parseInt(match.groups.major, 10);
+  const supportedMajor = SUPPORTED_NODE_TARGETS.find((entry) => entry.major === major);
 
-  if (Number.isNaN(major)) {
-    throw new Error(`Invalid prebuild target "${target}".`);
+  if (!supportedMajor) {
+    throw new Error(`Unsupported prebuild target "${target}". Supported majors: ${SUPPORTED_NODE_TARGETS.map((entry) => entry.major).join(', ')}.`);
   }
 
   if (target.endsWith('.x')) {
@@ -159,14 +195,6 @@ function buildPrebuildArgs(options) {
   return args;
 }
 
-function getCurrentPrebuildDir(platform = process.platform, arch = process.arch) {
-  return `${platform}-${arch}`;
-}
-
-function getSupportedNodeTargets() {
-  return SUPPORTED_NODE_TARGETS.map((target) => ({ ...target }));
-}
-
 function getNodeAbiForMajor(major) {
   const supported = SUPPORTED_NODE_TARGETS.find((target) => target.major === major);
   return supported ? supported.abi : null;
@@ -189,65 +217,44 @@ function getPrebuildPlanForTargets(targets) {
   });
 }
 
-function getReleasePrebuildPlan(
-  platform = process.platform,
-  arch = process.arch,
-  currentVersion = process.versions.node,
-) {
-  const currentDir = getCurrentPrebuildDir(platform, arch);
-  const minimumMajor = RELEASE_PREBUILD_MINIMUM_MAJOR[currentDir];
-
-  if (minimumMajor === undefined) {
-    const abi = getNodeAbiForVersion(currentVersion);
-    if (!abi) {
-      return [];
-    }
-
-    return [{ major: parseNodeVersion(currentVersion).major, version: currentVersion, abi }];
-  }
-
-  return SUPPORTED_NODE_TARGETS
-    .filter((target) => target.major >= minimumMajor)
-    .map((target) => ({ ...target }));
+function getReleasePrebuildPlan() {
+  return SUPPORTED_NODE_TARGETS.map((target) => ({ ...target }));
 }
 
-function getReleasePrebuildTargets(
-  platform = process.platform,
-  arch = process.arch,
-  currentVersion = process.versions.node,
-) {
-  return getReleasePrebuildPlan(platform, arch, currentVersion).map((target) => target.version);
+function getReleasePrebuildTargets() {
+  return getReleasePrebuildPlan().map((target) => target.version);
 }
 
-function getExpectedPrebuildFiles(
-  platform = process.platform,
-  arch = process.arch,
-  currentVersion = process.versions.node,
-) {
-  return getExpectedPrebuildFilesForTargets(
-    getReleasePrebuildPlan(platform, arch, currentVersion).map((target) => target.version),
-  );
-}
-
-function getExpectedPrebuildFilesForTargets(targets) {
+function getExpectedPrebuildFilesForTargets(targets, packageName = ROOT_PACKAGE_NAME) {
   return getPrebuildPlanForTargets(targets).map(
-    (target) => `function-location.abi${target.abi}.node`,
+    (target) => `${packageName}.abi${target.abi}.node`,
   );
+}
+
+function getExpectedPrebuildFiles(platform = process.platform, arch = process.arch, packageName = ROOT_PACKAGE_NAME) {
+  getCurrentPlatformPackage(platform, arch);
+  return getExpectedPrebuildFilesForTargets(getReleasePrebuildTargets(), packageName);
 }
 
 module.exports = {
+  buildPrebuildArgs,
+  getCurrentPlatformPackage,
+  getCurrentPrebuildDir,
   getExpectedPrebuildFiles,
   getExpectedPrebuildFilesForTargets,
-  parseNodeVersion,
-  normalizeTarget,
-  parseTargetList,
-  parsePrebuildArgs,
-  buildPrebuildArgs,
-  getCurrentPrebuildDir,
   getNodeAbiForMajor,
   getNodeAbiForVersion,
+  getPlatformPackageByName,
+  getPlatformPackageByRuntime,
+  getPlatformPackageDir,
+  getPlatformPackages,
   getPrebuildPlanForTargets,
   getReleasePrebuildPlan,
   getReleasePrebuildTargets,
+  getRootPackageName,
   getSupportedNodeTargets,
+  normalizeTarget,
+  parseNodeVersion,
+  parsePrebuildArgs,
+  parseTargetList,
 };

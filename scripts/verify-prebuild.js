@@ -7,17 +7,12 @@ const path = require('path');
 const {
   getCurrentPrebuildDir,
   getExpectedPrebuildFilesForTargets,
+  getPlatformPackageDir,
+  getReleasePrebuildTargets,
+  getRootPackageName,
   parseTargetList,
 } = require('./prebuild-utils');
-
-function hasNodeBinary(directory) {
-  if (!fs.existsSync(directory)) {
-    return false;
-  }
-
-  const files = fs.readdirSync(directory);
-  return files.some((file) => file.endsWith('.node'));
-}
+const { resolvePlatformPackage } = require('./prebuild');
 
 function getNodeBinaries(directory) {
   if (!fs.existsSync(directory)) {
@@ -27,17 +22,17 @@ function getNodeBinaries(directory) {
   return fs.readdirSync(directory).filter((file) => file.endsWith('.node')).sort();
 }
 
-function verifyExpectedPrebuildFiles(rootDir, platformDirName) {
-  const platformDir = path.join(rootDir, 'prebuilds', platformDirName);
+function hasNodeBinary(directory) {
+  return getNodeBinaries(directory).length > 0;
+}
+
+function verifyExpectedPrebuildFiles(packageDir, platformDirName, packageName) {
+  const platformDir = path.join(packageDir, 'prebuilds', platformDirName);
   const targets = process.env.PREBUILD_TARGETS
     ? parseTargetList(process.env.PREBUILD_TARGETS, process.versions.node)
-    : [process.versions.node];
-  const expected = getExpectedPrebuildFilesForTargets(targets).sort();
-
-  if (expected.length === 0) {
-    return;
-  }
-
+    : [];
+  const expectedTargets = targets.length > 0 ? targets : getReleasePrebuildTargets();
+  const expected = getExpectedPrebuildFilesForTargets(expectedTargets, packageName).sort();
   const actual = getNodeBinaries(platformDir);
   const missing = expected.filter((file) => !actual.includes(file));
   const unexpected = actual.filter((file) => !expected.includes(file));
@@ -57,16 +52,15 @@ function verifyExpectedPrebuildFiles(rootDir, platformDirName) {
   }
 }
 
-function runPrebuildSmokeTest(rootDir) {
+function runPrebuildSmokeTest(packageDir) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'function-location-prebuild-'));
   const tempFile = path.join(tempDir, 'smoke.js');
-  const packageEntry = path.join(rootDir, 'dist');
 
   fs.writeFileSync(
     tempFile,
     [
       "const path = require('path');",
-      `const { locate } = require(${JSON.stringify(packageEntry)});`,
+      `const { locate } = require(${JSON.stringify(packageDir)});`,
       'function smokeFixture() {}',
       'const expected = path.resolve(__filename);',
       'const located = locate(smokeFixture);',
@@ -82,7 +76,7 @@ function runPrebuildSmokeTest(rootDir) {
 
   try {
     const result = spawnSync(process.execPath, [tempFile], {
-      cwd: rootDir,
+      cwd: packageDir,
       encoding: 'utf8',
       env: {
         ...process.env,
@@ -104,10 +98,19 @@ function runPrebuildSmokeTest(rootDir) {
   }
 }
 
-function runVerifyPrebuild() {
-  const rootDir = process.cwd();
-  const platformDirName = getCurrentPrebuildDir();
-  const platformDir = path.join(rootDir, 'prebuilds', platformDirName);
+function shouldRunSmokeTest(argv = process.argv.slice(2), env = process.env) {
+  if (argv.includes('--no-smoke')) {
+    return false;
+  }
+
+  return env.PREBUILD_VERIFY_SMOKE !== '0';
+}
+
+function runVerifyPrebuild(rootDir = process.cwd(), argv = process.argv.slice(2)) {
+  const platformPackage = resolvePlatformPackage(argv, process.env);
+  const packageDir = getPlatformPackageDir(platformPackage, rootDir);
+  const platformDirName = getCurrentPrebuildDir(platformPackage.platform, platformPackage.arch);
+  const platformDir = path.join(packageDir, 'prebuilds', platformDirName);
 
   if (!hasNodeBinary(platformDir)) {
     console.error(`Missing prebuild binary under ${platformDir}`);
@@ -115,14 +118,27 @@ function runVerifyPrebuild() {
   }
 
   try {
-    verifyExpectedPrebuildFiles(rootDir, platformDirName);
-    runPrebuildSmokeTest(rootDir);
+    verifyExpectedPrebuildFiles(packageDir, platformDirName, getRootPackageName());
+    if (shouldRunSmokeTest(argv, process.env)) {
+      runPrebuildSmokeTest(packageDir);
+    }
   } catch (error) {
     console.error(`Prebuild verification failed for ${platformDirName}: ${error.message}`);
     process.exit(1);
   }
 
-  console.log(`Verified prebuild binaries for ${platformDirName} can be loaded and used.`);
+  console.log(`Verified prebuild binaries for ${platformPackage.name} can be loaded and used.`);
 }
 
-runVerifyPrebuild();
+if (require.main === module) {
+  runVerifyPrebuild();
+}
+
+module.exports = {
+  getNodeBinaries,
+  hasNodeBinary,
+  runPrebuildSmokeTest,
+  runVerifyPrebuild,
+  shouldRunSmokeTest,
+  verifyExpectedPrebuildFiles,
+};
