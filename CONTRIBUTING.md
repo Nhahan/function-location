@@ -23,14 +23,14 @@ The root npm package ships only the JS wrapper and metadata. Native binaries are
 ## CI and release
 
 - `CI` is the fast feedback workflow:
-  - maintainer test matrix on Linux, Windows, and macOS across Node `16/20/22/24`
-  - root package tarball verification once per OS on Node `16`
+  - maintainer test matrix on Linux, Windows, and macOS across Node `20/22/24`
+  - root package tarball verification once per OS on Node `20`
   - platform prebuild generation and platform package tarball verification
 - `Release` is the publish gate:
-  - same test matrix
+  - same maintainer test matrix
   - platform package tarballs are built first
   - the root package tarball is built separately
-  - compatibility smoke tests install the root tarball plus the matching platform tarball
+  - compatibility smoke tests install the root tarball plus the matching platform tarball across Node `16/18/20/22/24`
   - publish order is platform packages first, then the root package
 
 `Release` dry-runs are allowed from `ci-verify/*`. Real publishes are restricted to `dev`.
