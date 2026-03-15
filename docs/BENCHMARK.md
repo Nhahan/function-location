@@ -13,43 +13,46 @@ This document records the current sample benchmark shown in the README.
 
 - OS: macOS
 - Architecture: arm64
-- Node.js: `v22.20.0`
+- Node.js: `v24.14.0`
+- CPU: Apple M4 Max
 
 ## Result
 
 | Approach | Median latency / call | Relative speed |
 | --- | ---: | ---: |
-| `locate` | `0.1126 µs` | `1413x faster` |
-| `inspector protocol` | `159.12 µs` | `baseline` |
+| `locate` | `0.1250 µs` | `94x faster` |
+| `inspector protocol` | `11.79 µs` | `baseline` |
 
 ## Raw samples
 
 Native `locate()` samples, µs/call:
 
 ```text
-0.12965425
-0.115545333
-0.113217041
-0.113052084
-0.111921167
-0.111531375
-0.111711083
-0.112199459
-0.112636042
+0.042000000
+0.083000000
+0.083000000
+0.083000000
+0.083000000
+0.083000000
+0.083000000
+0.083000000
+0.083000000
+0.083000000
 ```
 
 Inspector baseline samples, µs/call:
 
 ```text
-137.1955923076923
-159.11843076923077
-155.6633
-156.77107307692307
-156.81362115384616
-176.43774038461538
-169.46802884615386
-173.6127403846154
-180.23517692307692
+10.166000000
+10.167000000
+10.208000000
+10.250000000
+10.250000000
+10.291000000
+10.291000000
+10.291000000
+10.292000000
+10.333000000
 ```
 
 ## Notes

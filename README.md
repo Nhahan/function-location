@@ -39,8 +39,8 @@ Sample comparison against an inspector-protocol baseline:
 
 | Approach | Avg. time / call | Relative speed |
 | --- | ---: | ---: |
-| `locate` | `0.1126 µs` | `1413x faster` |
-| `inspector protocol` | `159.12 µs` | `baseline` |
+| `locate` | `0.1250 µs` | `94x faster` |
+| `inspector protocol` | `11.79 µs` | `baseline` |
 
 ![Locating performance (example run)](./docs/benchmark-locate.svg)
 
