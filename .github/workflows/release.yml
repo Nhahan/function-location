@@ -283,6 +283,7 @@ jobs:
         if: ${{ inputs.dry_run }}
         shell: bash
         run: |
+          dry_run_suffix="dryrun.${GITHUB_RUN_ID}"
           root_tarball="$(find "artifacts/package-function-location" -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
           mapfile -t platform_names < <(node - "$RUNNER_TEMP/release-packages.json" <<'EOF'
           const fs = require('fs');
@@ -299,16 +300,25 @@ jobs:
             exit 1
           fi
 
+          rm -rf "$RUNNER_TEMP/dry-run-publish"
+          mkdir -p "$RUNNER_TEMP/dry-run-publish"
+
           for package_name in "${platform_names[@]}"; do
             tarball="$(find "artifacts/package-$package_name" -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
             if [ -z "$tarball" ]; then
               echo "Missing tarball for $package_name."
               exit 1
             fi
-            npm publish "$tarball" --access public --dry-run --ignore-scripts --tag dry-run
+            staging_dir="$RUNNER_TEMP/dry-run-publish/$package_name"
+            rm -rf "$staging_dir"
+            prepared_dir="$(node ./scripts/prepare-dry-run-publish.js --tarball="$tarball" --out-dir="$staging_dir" --version-suffix="$dry_run_suffix")"
+            npm publish "$prepared_dir" --access public --dry-run --ignore-scripts --tag dry-run
           done
 
-          npm publish "$root_tarball" --access public --dry-run --ignore-scripts --tag dry-run
+          root_staging_dir="$RUNNER_TEMP/dry-run-publish/function-location"
+          rm -rf "$root_staging_dir"
+          prepared_root_dir="$(node ./scripts/prepare-dry-run-publish.js --tarball="$root_tarball" --out-dir="$root_staging_dir" --version-suffix="$dry_run_suffix")"
+          npm publish "$prepared_root_dir" --access public --dry-run --ignore-scripts --tag dry-run
 
       - name: Publish packages
         if: ${{ !inputs.dry_run }}

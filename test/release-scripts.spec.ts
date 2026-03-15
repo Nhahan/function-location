@@ -5,6 +5,10 @@ import { spawnSync } from 'node:child_process';
 
 const BRANCH_SCRIPT_PATH = path.join(process.cwd(), 'scripts', 'verify-release-branch.js');
 const TAR_SCRIPT_PATH = path.join(process.cwd(), 'scripts', 'create-package-tarball.js');
+const {
+  applyDryRunVersion,
+  createDryRunVersion,
+} = require('../scripts/prepare-dry-run-publish');
 const { assertVersionAlignment, getPublishedPackages } = require('../scripts/package-metadata');
 const rootPackageJson = require('../package.json');
 
@@ -68,6 +72,33 @@ describe('release scripts', () => {
     expect(existsSync(path.join(artifactsDir, 'function-location-test-package-1.0.0.tgz'))).toBe(true);
 
     rmSync(root, { recursive: true, force: true });
+  });
+
+  test('dry-run publish versions are rewritten to unique prereleases', () => {
+    expect(createDryRunVersion('1.0.0', 'dryrun.123')).toBe('1.0.0-dryrun.123');
+    expect(createDryRunVersion('1.0.0-beta.1', 'dryrun.123')).toBe('1.0.0-beta.1.dryrun.123');
+  });
+
+  test('dry-run publish keeps platform package versions aligned in the root manifest', () => {
+    const updated = applyDryRunVersion(
+      {
+        name: 'function-location',
+        version: '1.0.0',
+        optionalDependencies: {
+          'function-location-linux-x64': '1.0.0',
+          'function-location-win32-x64': '1.0.0',
+          unrelated: '^1.2.3',
+        },
+      },
+      '1.0.0-dryrun.123',
+    );
+
+    expect(updated.version).toBe('1.0.0-dryrun.123');
+    expect(updated.optionalDependencies).toEqual({
+      'function-location-linux-x64': '1.0.0-dryrun.123',
+      'function-location-win32-x64': '1.0.0-dryrun.123',
+      unrelated: '^1.2.3',
+    });
   });
 
   test('verify-release-branch accepts only dev branch by default', () => {
