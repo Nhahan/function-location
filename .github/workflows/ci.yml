@@ -18,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       prebuild_matrix: ${{ steps.prebuild_matrix.outputs.json }}
+      compat_matrix: ${{ steps.compat_matrix.outputs.json }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -30,6 +31,10 @@ jobs:
       - name: Resolve prebuild matrix
         id: prebuild_matrix
         run: echo "json=$(node ./scripts/workflow-matrix.js prebuild)" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve compatibility matrix
+        id: compat_matrix
+        run: echo "json=$(node ./scripts/workflow-matrix.js compat)" >> "$GITHUB_OUTPUT"
 
   test:
     name: test-${{ matrix.os }}-node-${{ matrix.node-version }}
@@ -85,6 +90,40 @@ jobs:
       - name: Verify root package tarball
         run: npm run verify:pack
 
+  root-package:
+    name: package-root
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.14.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install npm dependencies
+        run: npm install --omit=optional --no-audit --no-fund
+
+      - name: Build TypeScript artifacts
+        run: npm run build
+
+      - name: Verify root package tarball
+        run: npm run verify:pack
+
+      - name: Create root package tarball
+        run: node ./scripts/create-package-tarball.js --out-dir=artifacts
+
+      - name: Upload root package artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-function-location
+          path: artifacts/*.tgz
+          if-no-files-found: error
+
   prebuild:
     name: prebuild-${{ matrix.packageName }}
     runs-on: ${{ matrix.runner }}
@@ -116,3 +155,62 @@ jobs:
 
       - name: Verify platform package tarball
         run: node ./scripts/verify-pack-tarball.js --package-dir=${{ matrix.packageDir }}
+
+      - name: Create platform package tarball
+        run: node ./scripts/create-package-tarball.js --package-dir=${{ matrix.packageDir }} --out-dir=artifacts
+
+      - name: Upload platform package artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ matrix.packageName }}
+          path: artifacts/*.tgz
+          if-no-files-found: error
+
+  compatibility:
+    name: compat-${{ matrix.compatibilityLabel }}-node-${{ matrix.nodeVersion }}
+    runs-on: ${{ matrix.runner }}
+    needs: [plan, root-package, prebuild]
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.compat_matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.nodeVersion }}
+          architecture: ${{ matrix.nodeArchitecture }}
+
+      - name: Download root package artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: package-function-location
+          path: artifacts/root
+
+      - name: Download platform package artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: package-${{ matrix.packageName }}
+          path: artifacts/platform
+
+      - name: Install packed packages and run smoke test
+        shell: bash
+        run: |
+          root_tarball="$(find artifacts/root -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+          platform_tarball="$(find artifacts/platform -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+
+          if [ -z "$root_tarball" ] || [ -z "$platform_tarball" ]; then
+            echo "Required tarball artifacts were not downloaded."
+            exit 1
+          fi
+
+          node ./scripts/run-compat-smoke.js \
+            --root-tarball="$root_tarball" \
+            --platform-tarball="$platform_tarball" \
+            --expected-node-arch="${{ matrix.nodeArchitecture }}" \
+            --expected-host-arm64="${{ matrix.expectedHostArm64 }}" \
+            --expected-translated="${{ matrix.expectedTranslated }}"

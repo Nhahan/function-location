@@ -26,6 +26,7 @@ The root npm package ships only the JS wrapper and metadata. Native binaries are
   - maintainer test matrix on Linux, Windows, and macOS across Node `20/22/24`
   - root package tarball verification once per OS on Node `20`
   - platform prebuild generation and platform package tarball verification
+  - compatibility smoke tests across Node `16/18/20/22/24`
 - `Release` is the publish gate:
   - same maintainer test matrix
   - platform package tarballs are built first
