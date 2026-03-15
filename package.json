@@ -21,7 +21,6 @@
     "build:prebuilds": "node ./scripts/prebuild.js",
     "verify:prebuild": "node ./scripts/verify-prebuild.js",
     "verify:pack": "node ./scripts/verify-pack-tarball.js",
-    "pack:artifact": "node ./scripts/create-package-tarball.js",
     "prepack": "node ./scripts/run-prepack.js",
     "test": "node ./scripts/run-tests.js"
   },
