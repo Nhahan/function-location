@@ -6,6 +6,7 @@ const {
   createPackInvocation,
   getRequiredEntryPath,
   parsePackageDir,
+  resolveNpmCliPath,
   stagePackDirectory,
   verifyPackTarball,
 } = require('../scripts/verify-pack-tarball');
@@ -24,11 +25,18 @@ describe('verify-pack-tarball', () => {
     ]);
   });
 
-  test('falls back to the platform npm command outside npm-run environments', () => {
+  test('falls back to the resolved npm cli path outside npm-run environments', () => {
     const invocation = createPackInvocation({});
+    const npmCliPath = resolveNpmCliPath();
 
-    expect(invocation.command).toBe(process.platform === 'win32' ? 'npm.cmd' : 'npm');
-    expect(invocation.args).toEqual(['pack', '--json', '--silent', '--ignore-scripts']);
+    expect(invocation.command).toBe(process.execPath);
+    expect(invocation.args).toEqual([
+      npmCliPath,
+      'pack',
+      '--json',
+      '--silent',
+      '--ignore-scripts',
+    ]);
   });
 
   test('normalizes package file entries before staging', () => {

@@ -24,13 +24,32 @@ function cleanupTarball(tarballPath) {
   }
 }
 
-function createPackInvocation(env = process.env) {
+function resolveNpmCliPath(execPath = process.execPath) {
+  const nodeDir = path.dirname(execPath);
+  const candidates = [
+    path.resolve(nodeDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.resolve(nodeDir, '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.resolve(nodeDir, '..', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function createPackInvocation(env = process.env, execPath = process.execPath) {
   const args = ['pack', '--json', '--silent', '--ignore-scripts'];
 
-  if (env.npm_execpath) {
+  const npmExecPath = env.npm_execpath || resolveNpmCliPath(execPath);
+
+  if (npmExecPath) {
     return {
-      command: process.execPath,
-      args: [env.npm_execpath].concat(args),
+      command: execPath,
+      args: [npmExecPath].concat(args),
     };
   }
 
@@ -273,6 +292,7 @@ module.exports = {
   normalizePath,
   packStagedPackage,
   parsePackageDir,
+  resolveNpmCliPath,
   stagePackDirectory,
   verifyPackTarball,
 };
