@@ -62,7 +62,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci --omit=optional --no-audit --no-fund
+        run: npm install --omit=optional --no-audit --no-fund
 
       - name: Run test suite
         run: npm test -- --runInBand
@@ -87,7 +87,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci --omit=optional --no-audit --no-fund
+        run: npm install --omit=optional --no-audit --no-fund
 
       - name: Build TypeScript artifacts
         run: npm run build
@@ -111,7 +111,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci --omit=optional --no-audit --no-fund
+        run: npm install --omit=optional --no-audit --no-fund
 
       - name: Build TypeScript artifacts
         run: npm run build
@@ -151,7 +151,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci --omit=optional --no-audit --no-fund
+        run: npm install --omit=optional --no-audit --no-fund
 
       - name: Build platform prebuilds
         run: npm run build:prebuilds -- --package=${{ matrix.packageName }} --target=${{ matrix.targetNodeVersion }}
