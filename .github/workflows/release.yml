@@ -37,6 +37,7 @@ jobs:
     needs: guard
     outputs:
       prebuild_matrix: ${{ steps.prebuild_matrix.outputs.json }}
+      package_matrix: ${{ steps.package_matrix.outputs.json }}
       compat_matrix: ${{ steps.compat_matrix.outputs.json }}
     steps:
       - name: Checkout
@@ -50,6 +51,10 @@ jobs:
       - name: Resolve prebuild matrix
         id: prebuild_matrix
         run: echo "json=$(node ./scripts/workflow-matrix.js prebuild)" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve package matrix
+        id: package_matrix
+        run: echo "json=$(node ./scripts/workflow-matrix.js package)" >> "$GITHUB_OUTPUT"
 
       - name: Resolve compatibility matrix
         id: compat_matrix
@@ -76,7 +81,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm install --omit=optional --no-audit --no-fund
+        run: npm ci --omit=optional --no-audit --no-fund
 
       - name: Run test suite
         run: npm test -- --runInBand
@@ -97,7 +102,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm install --omit=optional --no-audit --no-fund
+        run: npm ci --omit=optional --no-audit --no-fund
 
       - name: Build TypeScript artifacts
         run: npm run build
@@ -113,10 +118,11 @@ jobs:
         with:
           name: package-function-location
           path: artifacts/*.tgz
+          compression-level: 0
           if-no-files-found: error
 
   prebuild:
-    name: prebuild-${{ matrix.packageName }}
+    name: prebuild-${{ matrix.packageName }}-abi${{ matrix.abi }}
     runs-on: ${{ matrix.runner }}
     needs: plan
     strategy:
@@ -130,17 +136,57 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: ${{ matrix.nodeVersion }}
+          node-version: ${{ matrix.hostNodeVersion }}
           cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm install --omit=optional --no-audit --no-fund
+        run: npm ci --omit=optional --no-audit --no-fund
 
       - name: Build platform prebuilds
-        run: npm run build:prebuilds -- --package=${{ matrix.packageName }}
+        run: npm run build:prebuilds -- --package=${{ matrix.packageName }} --target=${{ matrix.targetNodeVersion }}
 
       - name: Verify platform prebuilds
+        env:
+          PREBUILD_TARGETS: ${{ matrix.targetNodeVersion }}
+          PREBUILD_VERIFY_SMOKE: '0'
+        run: npm run verify:prebuild -- --package=${{ matrix.packageName }}
+
+      - name: Upload prebuild artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifactName }}
+          path: ${{ matrix.packageDir }}/prebuilds/${{ matrix.platformDir }}/*.node
+          compression-level: 0
+          if-no-files-found: error
+
+  platform-package:
+    name: package-${{ matrix.packageName }}
+    runs-on: ubuntu-latest
+    needs: [plan, prebuild]
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.package_matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.nodeVersion }}
+
+      - name: Download prebuild artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ${{ matrix.artifactPattern }}
+          path: ${{ matrix.packageDir }}/prebuilds/${{ matrix.platformDir }}
+          merge-multiple: true
+
+      - name: Verify platform prebuilds
+        env:
+          PREBUILD_VERIFY_SMOKE: '0'
         run: npm run verify:prebuild -- --package=${{ matrix.packageName }}
 
       - name: Verify platform package tarball
@@ -154,12 +200,13 @@ jobs:
         with:
           name: package-${{ matrix.packageName }}
           path: artifacts/*.tgz
+          compression-level: 0
           if-no-files-found: error
 
   compatibility:
     name: compat-${{ matrix.compatibilityLabel }}-node-${{ matrix.nodeVersion }}
     runs-on: ${{ matrix.runner }}
-    needs: [plan, root-package, prebuild]
+    needs: [plan, root-package, platform-package]
     strategy:
       fail-fast: false
       matrix:

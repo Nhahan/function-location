@@ -98,6 +98,14 @@ function runPrebuildSmokeTest(packageDir) {
   }
 }
 
+function shouldRunSmokeTest(argv = process.argv.slice(2), env = process.env) {
+  if (argv.includes('--no-smoke')) {
+    return false;
+  }
+
+  return env.PREBUILD_VERIFY_SMOKE !== '0';
+}
+
 function runVerifyPrebuild(rootDir = process.cwd(), argv = process.argv.slice(2)) {
   const platformPackage = resolvePlatformPackage(argv, process.env);
   const packageDir = getPlatformPackageDir(platformPackage, rootDir);
@@ -111,7 +119,9 @@ function runVerifyPrebuild(rootDir = process.cwd(), argv = process.argv.slice(2)
 
   try {
     verifyExpectedPrebuildFiles(packageDir, platformDirName, getRootPackageName());
-    runPrebuildSmokeTest(packageDir);
+    if (shouldRunSmokeTest(argv, process.env)) {
+      runPrebuildSmokeTest(packageDir);
+    }
   } catch (error) {
     console.error(`Prebuild verification failed for ${platformDirName}: ${error.message}`);
     process.exit(1);
@@ -129,5 +139,6 @@ module.exports = {
   hasNodeBinary,
   runPrebuildSmokeTest,
   runVerifyPrebuild,
+  shouldRunSmokeTest,
   verifyExpectedPrebuildFiles,
 };
