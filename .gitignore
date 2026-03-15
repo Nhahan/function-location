@@ -3,8 +3,10 @@ node_modules/
 build/
 dist/
 prebuilds/
+packages/*/prebuilds/
 native/build/
 *.tgz
+*.bundle
 .DS_Store
 
 # User-specific stuff:
@@ -213,6 +215,8 @@ publish/
 
 # Project guidance
 AGENTS.md
+AGETNS.md
+CLAUDE.md
 
 # Publish Web Output
 *.[Pp]ublish.xml

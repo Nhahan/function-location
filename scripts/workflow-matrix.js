@@ -4,6 +4,7 @@
 
 const {
   getCurrentPrebuildDir,
+  getPlatformPackageByRuntime,
   getReleasePrebuildPlan,
   getReleasePrebuildTargets,
 } = require('./prebuild-utils');
@@ -58,23 +59,39 @@ const COMPATIBILITY_PLATFORMS = Object.freeze([
 ]);
 
 function getPrebuildMatrix() {
-  return PREBUILD_PLATFORMS.map((entry) => ({
-    ...entry,
-    nodeVersion: '24.14.0',
-    platformDir: getCurrentPrebuildDir(entry.platform, entry.arch),
-    prebuildTargets: getReleasePrebuildTargets(entry.platform, entry.arch).join(','),
-  }));
+  return PREBUILD_PLATFORMS.map((entry) => {
+    const platformPackage = getPlatformPackageByRuntime(entry.platform, entry.arch);
+
+    if (!platformPackage) {
+      throw new Error(`Missing platform package mapping for ${entry.platform}-${entry.arch}`);
+    }
+
+    return {
+      ...entry,
+      packageName: platformPackage.name,
+      packageDir: platformPackage.dir,
+      nodeVersion: '24.14.0',
+      platformDir: getCurrentPrebuildDir(entry.platform, entry.arch),
+      prebuildTargets: getReleasePrebuildTargets().join(','),
+    };
+  });
 }
 
 function getCompatibilityMatrix() {
   const matrix = [];
 
   for (const entry of COMPATIBILITY_PLATFORMS) {
-    const targets = getReleasePrebuildPlan(entry.platform, entry.arch);
+    const platformPackage = getPlatformPackageByRuntime(entry.platform, entry.arch);
 
-    for (const target of targets) {
+    if (!platformPackage) {
+      throw new Error(`Missing platform package mapping for ${entry.platform}-${entry.arch}`);
+    }
+
+    for (const target of getReleasePrebuildPlan()) {
       matrix.push({
         ...entry,
+        packageName: platformPackage.name,
+        packageDir: platformPackage.dir,
         nodeVersion: target.version,
         abi: target.abi,
         platformDir: getCurrentPrebuildDir(entry.platform, entry.arch),

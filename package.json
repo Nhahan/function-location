@@ -2,26 +2,26 @@
   "name": "function-location",
   "version": "1.0.0",
   "description": "Retrieve `[[FunctionLocation]]` from V8.",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/lib/index.js",
+  "types": "dist/lib/index.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": "./dist/lib/index.js"
   },
   "files": [
-    "dist/index.js",
-    "dist/index.d.ts",
-    "dist/loader.js",
-    "dist/loader.d.ts",
-    "prebuilds/**"
+    "dist/lib/index.js",
+    "dist/lib/index.d.ts",
+    "dist/lib/loader.js",
+    "dist/lib/loader.d.ts",
+    "dist/config/package-layout.json"
   ],
   "scripts": {
     "build:all": "npm run build && npm run build:native",
-    "build": "tsc",
+    "build": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && tsc",
     "build:native": "node ./scripts/build-native.js",
-    "install": "node-gyp-build",
     "build:prebuilds": "node ./scripts/prebuild.js",
     "verify:prebuild": "node ./scripts/verify-prebuild.js",
     "verify:pack": "node ./scripts/verify-pack-tarball.js",
+    "pack:artifact": "node ./scripts/create-package-tarball.js",
     "prepack": "node ./scripts/run-prepack.js",
     "test": "node ./scripts/run-tests.js"
   },
@@ -37,7 +37,7 @@
   "license": "MIT",
   "homepage": "https://github.com/Nhahan/function-location",
   "engines": {
-    "node": ">=8 <25"
+    "node": ">=16 <25"
   },
   "devDependencies": {
     "@types/jest": "^29.5.3",
@@ -50,5 +50,11 @@
   },
   "dependencies": {
     "node-gyp-build": "^4.8.4"
+  },
+  "optionalDependencies": {
+    "function-location-darwin-arm64": "1.0.0",
+    "function-location-darwin-x64": "1.0.0",
+    "function-location-linux-x64": "1.0.0",
+    "function-location-win32-x64": "1.0.0"
   }
 }

@@ -1,4 +1,4 @@
-import { locate } from '../dist';
+import { locate } from '../dist/lib';
 
 export class TestClass {
 }

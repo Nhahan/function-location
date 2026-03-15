@@ -52,7 +52,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci
+        run: npm ci --omit=optional
 
       - name: Run test suite
         run: npm test -- --runInBand
@@ -77,19 +77,16 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci
+        run: npm ci --omit=optional
 
       - name: Build TypeScript artifacts
         run: npm run build
 
-      - name: Build local prebuilds for tarball verification
-        run: npm run build:prebuilds
-
-      - name: Verify package tarball
+      - name: Verify root package tarball
         run: npm run verify:pack
 
   prebuild:
-    name: prebuild-${{ matrix.platformDir }}-node-${{ matrix.nodeVersion }}
+    name: prebuild-${{ matrix.packageName }}
     runs-on: ${{ matrix.runner }}
     needs: plan
     strategy:
@@ -109,86 +106,13 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci
+        run: npm ci --omit=optional
 
-      - name: Build TypeScript artifacts
-        run: npm run build
+      - name: Build platform prebuilds
+        run: npm run build:prebuilds -- --package=${{ matrix.packageName }}
 
-      - name: Build platform prebuild
-        env:
-          PREBUILD_TARGETS: ${{ matrix.prebuildTargets }}
-        run: npm run build:prebuilds
+      - name: Verify platform prebuilds
+        run: npm run verify:prebuild -- --package=${{ matrix.packageName }}
 
-      - name: Verify prebuild platform artifact
-        env:
-          PREBUILD_TARGETS: ${{ matrix.prebuildTargets }}
-        run: npm run verify:prebuild
-
-      - name: Upload prebuild artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: prebuild-${{ matrix.platformDir }}
-          path: prebuilds
-          if-no-files-found: error
-
-  prebuild-coverage:
-    name: prebuild-coverage
-    runs-on: ubuntu-latest
-    needs: prebuild
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Download prebuild artifacts
-        uses: actions/download-artifact@v8
-        with:
-          pattern: prebuild-*
-          path: downloaded-prebuilds
-          merge-multiple: true
-
-      - name: Merge prebuild artifacts
-        run: PREBUILD_ARTIFACT_ROOT=downloaded-prebuilds PREBUILD_MERGED_DIR=merged-prebuilds node ./scripts/merge-prebuild-artifacts.js
-
-      - name: Verify prebuild release coverage
-        run: node ./scripts/verify-prebuild-coverage.js --base-dir=merged-prebuilds --release-plan
-
-      - name: Upload merged prebuild artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: merged-prebuilds
-          path: merged-prebuilds
-          if-no-files-found: error
-
-  package:
-    name: package
-    runs-on: ubuntu-latest
-    needs: [test, pack-verify, prebuild-coverage]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24.14.0
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Download merged prebuild artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: merged-prebuilds
-          path: .
-
-      - name: Prepare merged prebuild directory
-        run: |
-          rm -rf prebuilds
-          mv merged-prebuilds prebuilds
-
-      - name: Pack release tarball
-        env:
-          FUNCTION_LOCATION_PREBUILDS_READY: '1'
-        run: npm pack --silent
+      - name: Verify platform package tarball
+        run: node ./scripts/verify-pack-tarball.js --package-dir=${{ matrix.packageDir }}

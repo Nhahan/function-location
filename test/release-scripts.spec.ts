@@ -1,96 +1,77 @@
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const SCRIPT_PATH = path.join(process.cwd(), 'scripts', 'merge-prebuild-artifacts.js');
 const BRANCH_SCRIPT_PATH = path.join(process.cwd(), 'scripts', 'verify-release-branch.js');
-
-function makeArtifactsFixture() {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'function-location-release-'));
-  const artifactA = path.join(root, 'artifact-a');
-  const artifactB = path.join(root, 'artifact-b');
-
-  const prebuildA = path.join(artifactA, 'prebuilds', 'darwin-arm64');
-  const prebuildB = path.join(artifactB, 'prebuilds', 'linux-x64');
-
-  mkdirSync(prebuildA, { recursive: true });
-  mkdirSync(prebuildB, { recursive: true });
-
-  writeFileSync(path.join(prebuildA, 'locate-arm.node'), 'arm binary');
-  writeFileSync(path.join(prebuildB, 'locate-linux.node'), 'linux binary');
-
-  return { root, artifactA, artifactB };
-}
-
-function makeMergedArtifactFixture() {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'function-location-release-merged-'));
-  const darwin = path.join(root, 'downloaded-prebuilds', 'darwin-arm64');
-  const win32 = path.join(root, 'downloaded-prebuilds', 'win32-x64');
-
-  mkdirSync(darwin, { recursive: true });
-  mkdirSync(win32, { recursive: true });
-
-  writeFileSync(path.join(darwin, 'locate-arm.node'), 'arm binary');
-  writeFileSync(path.join(win32, 'locate-win.node'), 'win binary');
-
-  return { root };
-}
+const TAR_SCRIPT_PATH = path.join(process.cwd(), 'scripts', 'create-package-tarball.js');
+const { assertVersionAlignment, getPublishedPackages } = require('../scripts/package-metadata');
+const rootPackageJson = require('../package.json');
 
 describe('release scripts', () => {
-  test('merge-prebuild-artifacts merges multiple artifact roots', () => {
-    const { root, artifactA, artifactB } = makeArtifactsFixture();
+  test('release package versions stay aligned across the root and platform packages', () => {
+    const aligned = assertVersionAlignment(process.cwd());
 
-    const merged = path.join(root, 'merged');
-    const result = spawnSync('node', [SCRIPT_PATH], {
-      env: {
-        ...process.env,
-        PREBUILD_ARTIFACT_ROOT: root,
-        PREBUILD_MERGED_DIR: path.join(merged, 'prebuilds'),
+    expect(aligned.rootPackage.name).toBe('function-location');
+    expect(getPublishedPackages(process.cwd())).toEqual([
+      {
+        name: 'function-location',
+        version: rootPackageJson.version,
+        packageDir: process.cwd(),
       },
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    const mergedDarwin = readdirSync(path.join(merged, 'prebuilds', 'darwin-arm64'));
-    const mergedLinux = readdirSync(path.join(merged, 'prebuilds', 'linux-x64'));
-
-    expect(result.status).toBe(0);
-    expect(mergedDarwin).toContain('locate-arm.node');
-    expect(mergedLinux).toContain('locate-linux.node');
-
-    rmSync(path.join(root, 'merged'), { recursive: true, force: true });
-    rmSync(path.join(root, 'artifact-a'), { recursive: true, force: true });
-    rmSync(path.join(root, 'artifact-b'), { recursive: true, force: true });
-    rmSync(root, { recursive: true, force: true });
+      {
+        name: 'function-location-linux-x64',
+        version: rootPackageJson.version,
+        packageDir: path.join(process.cwd(), 'packages/function-location-linux-x64'),
+      },
+      {
+        name: 'function-location-win32-x64',
+        version: rootPackageJson.version,
+        packageDir: path.join(process.cwd(), 'packages/function-location-win32-x64'),
+      },
+      {
+        name: 'function-location-darwin-x64',
+        version: rootPackageJson.version,
+        packageDir: path.join(process.cwd(), 'packages/function-location-darwin-x64'),
+      },
+      {
+        name: 'function-location-darwin-arm64',
+        version: rootPackageJson.version,
+        packageDir: path.join(process.cwd(), 'packages/function-location-darwin-arm64'),
+      },
+    ]);
   });
 
-  test('merge-prebuild-artifacts accepts flattened download-artifact output', () => {
-    const { root } = makeMergedArtifactFixture();
+  test('create-package-tarball produces a tarball for a staged package directory', () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), 'function-location-release-pack-'));
+    const artifactsDir = path.join(root, 'artifacts');
 
-    const merged = path.join(root, 'merged');
-    const result = spawnSync('node', [SCRIPT_PATH], {
-      env: {
-        ...process.env,
-        PREBUILD_ARTIFACT_ROOT: path.join(root, 'downloaded-prebuilds'),
-        PREBUILD_MERGED_DIR: path.join(merged, 'prebuilds'),
-      },
+    writeFileSync(
+      path.join(root, 'package.json'),
+      JSON.stringify({
+        name: 'function-location-test-package',
+        version: '1.0.0',
+        files: ['dist/lib/index.js', 'dist/config/package-layout.json'],
+      }),
+    );
+    mkdirSync(path.join(root, 'dist', 'lib'), { recursive: true });
+    mkdirSync(path.join(root, 'dist', 'config'), { recursive: true });
+    writeFileSync(path.join(root, 'dist', 'lib', 'index.js'), 'module.exports = {};');
+    writeFileSync(path.join(root, 'dist', 'config', 'package-layout.json'), '{}');
+
+    const result = spawnSync(process.execPath, [TAR_SCRIPT_PATH, `--package-dir=${root}`, `--out-dir=${artifactsDir}`], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
-    const mergedDarwin = readdirSync(path.join(merged, 'prebuilds', 'darwin-arm64'));
-    const mergedWin32 = readdirSync(path.join(merged, 'prebuilds', 'win32-x64'));
-
     expect(result.status).toBe(0);
-    expect(mergedDarwin).toContain('locate-arm.node');
-    expect(mergedWin32).toContain('locate-win.node');
+    expect(existsSync(path.join(artifactsDir, 'function-location-test-package-1.0.0.tgz'))).toBe(true);
 
     rmSync(root, { recursive: true, force: true });
   });
 
   test('verify-release-branch accepts only dev branch by default', () => {
-    const result = spawnSync('node', [BRANCH_SCRIPT_PATH], {
+    const result = spawnSync(process.execPath, [BRANCH_SCRIPT_PATH], {
       env: {
         ...process.env,
         GITHUB_REF: 'refs/heads/main',
@@ -104,7 +85,7 @@ describe('release scripts', () => {
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain('Release is restricted to refs/heads/dev.');
 
-    const ok = spawnSync('node', [BRANCH_SCRIPT_PATH], {
+    const ok = spawnSync(process.execPath, [BRANCH_SCRIPT_PATH], {
       env: {
         ...process.env,
         GITHUB_REF: 'refs/heads/dev',
@@ -120,7 +101,7 @@ describe('release scripts', () => {
   });
 
   test('verify-release-branch allows ci-verify branches only in dry-run mode', () => {
-    const dryRunReject = spawnSync('node', [BRANCH_SCRIPT_PATH], {
+    const dryRunReject = spawnSync(process.execPath, [BRANCH_SCRIPT_PATH], {
       env: {
         ...process.env,
         GITHUB_REF: 'refs/heads/ci-verify/patch-1',
@@ -133,7 +114,7 @@ describe('release scripts', () => {
 
     expect(dryRunReject.status).not.toBe(0);
 
-    const dryRunPass = spawnSync('node', [BRANCH_SCRIPT_PATH], {
+    const dryRunPass = spawnSync(process.execPath, [BRANCH_SCRIPT_PATH], {
       env: {
         ...process.env,
         GITHUB_REF: 'refs/heads/ci-verify/patch-1',
