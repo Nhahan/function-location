@@ -66,10 +66,10 @@ function runPrebuildSmokeTest(rootDir) {
     tempFile,
     [
       "const path = require('path');",
-      `const { locateV8 } = require(${JSON.stringify(packageEntry)});`,
+      `const { locate } = require(${JSON.stringify(packageEntry)});`,
       'function smokeFixture() {}',
       'const expected = path.resolve(__filename);',
-      'const located = locateV8(smokeFixture);',
+      'const located = locate(smokeFixture);',
       'if (located !== expected) {',
       "  console.error(JSON.stringify({ expected, located }));",
       '  process.exit(1);',

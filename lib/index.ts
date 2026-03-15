@@ -1,7 +1,7 @@
 import { createLocateLoader } from './loader';
 
-const locate = createLocateLoader(require);
+const nativeLocate = createLocateLoader(require);
 
-export function locateV8(input: Function): string | undefined {
-    return locate(input);
+export function locate(input: Function): string | undefined {
+    return nativeLocate(input);
 }

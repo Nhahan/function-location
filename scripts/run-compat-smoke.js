@@ -116,7 +116,7 @@ function writeSmokeScript(targetPath) {
     "var lib = require('function-location');",
     'function smoke() {}',
     'var expected = path.resolve(__filename);',
-    'var located = lib.locateV8(smoke);',
+    'var located = lib.locate(smoke);',
     'if (located !== expected) {',
     "  console.error(JSON.stringify({ expected: expected, located: located, arch: process.arch, version: process.version }));",
     '  process.exit(1);',
