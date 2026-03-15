@@ -13,7 +13,7 @@ If a workflow change needs GitHub Actions verification, validate it on `ci-verif
 - Public package: `function-location`
 - Supported Node.js versions: `16.x`, `18.x`, `20.x`, `22.x`, `24.x`
 - Published platform packages:
-  - `function-location-linux-x64`
+  - `function-location-linux-x64` (`glibc`)
   - `function-location-win32-x64`
   - `function-location-darwin-x64`
   - `function-location-darwin-arm64`
@@ -39,5 +39,5 @@ The root npm package ships only the JS wrapper and metadata. Native binaries are
 
 - Generated `.node` binaries are CI artifacts only and must not be committed.
 - The root package depends on exact-version `optionalDependencies` for the platform packages. Keep those versions aligned.
-- Repository installs should use `npm ci --omit=optional` because the platform packages are release artifacts, not local workspace dependencies.
+- Repository installs should use `npm install --omit=optional` because the platform packages are release artifacts, not local workspace dependencies.
 - The public API is `locate()`. Internal runtime details such as V8 access should not leak into the exported API surface.

@@ -12,7 +12,7 @@ npm install function-location
 ```
 
 Supports Node.js `16+`.
-On Linux x64, Windows x64, and macOS, npm installs the matching native package automatically.
+On Linux x64 (glibc), Windows x64, and macOS, npm installs the matching native package automatically.
 
 ## Usage
 

@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 
 import packageLayout from '../config/package-layout.json';
@@ -17,7 +18,7 @@ type PlatformPackage = {
   arch: string;
 };
 
-const DEFAULT_PACKAGE_DIR = path.resolve(__dirname, '..');
+const DEFAULT_PACKAGE_DIR = resolveDefaultPackageDir();
 const PLATFORM_PACKAGES = packageLayout.platformPackages as PlatformPackage[];
 
 export function createLocateLoader(
@@ -75,6 +76,16 @@ function loadNativeAddon(requireFn: RequireFunction, packageDir: string): Native
       ].join(' '),
     );
   }
+}
+
+function resolveDefaultPackageDir(): string {
+  const candidate = path.resolve(__dirname, '..');
+
+  if (fs.existsSync(path.join(candidate, 'package.json'))) {
+    return candidate;
+  }
+
+  return path.resolve(candidate, '..');
 }
 
 function loadInstalledPlatformAddon(requireFn: RequireFunction, platformPackageName: string): NativeAddon {
