@@ -19,6 +19,7 @@
     "build": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && tsc",
     "build:native": "node ./scripts/build-native.js",
     "build:prebuilds": "node ./scripts/prebuild.js",
+    "benchmark": "node ./scripts/benchmark.js",
     "verify:prebuild": "node ./scripts/verify-prebuild.js",
     "verify:pack": "node ./scripts/verify-pack-tarball.js",
     "prepack": "node ./scripts/run-prepack.js",

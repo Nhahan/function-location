@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>function-location benchmark chart</title>
+    <style>
+      body {
+        margin: 0;
+        background: #ffffff;
+      }
+
+      main {
+        width: 860px;
+        margin: 0 auto;
+        padding: 24px 18px;
+        box-sizing: border-box;
+      }
+
+      #chart {
+        width: 824px;
+        height: 260px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <canvas id="chart" width="824" height="260" aria-label="function-location benchmark chart"></canvas>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+    <script>
+      const results = [
+        {
+          approach: "locate",
+          latency: 0.1197
+        },
+        {
+          approach: "inspector protocol",
+          latency: 224.8900
+        }
+      ];
+
+      const canvas = document.querySelector("#chart");
+
+      new Chart(canvas, {
+        type: "bar",
+        data: {
+          labels: results.map((entry) => entry.approach),
+          datasets: [
+            {
+              label: "Median latency per call (µs)",
+              data: results.map((entry) => entry.latency),
+              backgroundColor: [
+                "#22c55e",
+                "#ef4444"
+              ],
+              borderColor: [
+                "#22c55e",
+                "#ef4444"
+              ],
+              borderWidth: 1,
+              barThickness: 20,
+              maxBarThickness: 20,
+              categoryPercentage: 0.55
+            }
+          ]
+        },
+        options: {
+          animation: false,
+          responsive: false,
+          indexAxis: "y",
+          layout: {
+            padding: {
+              top: 18,
+              bottom: 16
+            }
+          },
+          plugins: {
+            title: {
+              display: true,
+              text: "function-location benchmark sample"
+            },
+            subtitle: {
+              display: true,
+              text: "Sample environment: macOS • Apple Silicon • Median latency per call • log scale • lower is better"
+            }
+          },
+          scales: {
+            x: {
+              type: "logarithmic",
+              min: 0.1,
+              max: 1000,
+              ticks: {
+                callback(value) {
+                  if ([0.1, 1, 10, 100, 1000].includes(Number(value))) {
+                    return `${value} µs`;
+                  }
+
+                  return "";
+                }
+              },
+              title: {
+                display: true,
+                text: "Median latency per call (µs)"
+              }
+            },
+            y: {
+              grid: {
+                display: false
+              }
+            }
+          }
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -37,12 +37,12 @@ This library uses a synchronous native addon lookup instead of the inspector pro
 
 Sample comparison against an inspector-protocol baseline:
 
-| Approach | Avg. time / call | Relative speed |
+| Approach | Median time / call | Relative speed |
 | --- | ---: | ---: |
-| `locate` | `0.1250 µs` | `94x faster` |
-| `inspector protocol` | `11.79 µs` | `baseline` |
+| `locate` | `0.1197 µs` | `1878.60x faster` |
+| `inspector protocol` | `224.8900 µs` | `baseline` |
 
-![Locating performance (example run)](./docs/benchmark-locate.svg)
+![Locating performance (example run)](./docs/benchmark-locate.png)
 
 Results vary by environment; treat them as sample measurements only.
 Methodology and raw samples: [docs/BENCHMARK.md](./docs/BENCHMARK.md)
