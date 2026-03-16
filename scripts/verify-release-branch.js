@@ -1,6 +1,6 @@
 'use strict';
 
-const allowedReleaseBranch = process.env.RELEASE_BRANCH || 'dev';
+const allowedReleaseBranch = process.env.RELEASE_BRANCH || 'main';
 const branchPrefixesForDryRun = (process.env.RELEASE_DRY_RUN_BRANCH_PREFIXES || 'refs/heads/ci-verify/')
   .split(',')
   .map((value) => value.trim())

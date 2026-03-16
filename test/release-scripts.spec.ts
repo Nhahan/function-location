@@ -101,12 +101,12 @@ describe('release scripts', () => {
     });
   });
 
-  test('verify-release-branch accepts only dev branch by default', () => {
+  test('verify-release-branch accepts only main branch by default', () => {
     const result = spawnSync(process.execPath, [BRANCH_SCRIPT_PATH], {
       env: {
         ...process.env,
-        GITHUB_REF: 'refs/heads/main',
-        RELEASE_BRANCH: 'dev',
+        GITHUB_REF: 'refs/heads/dev',
+        RELEASE_BRANCH: 'main',
         RELEASE_DRY_RUN: 'false',
       },
       encoding: 'utf8',
@@ -114,13 +114,13 @@ describe('release scripts', () => {
     });
 
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain('Release is restricted to refs/heads/dev.');
+    expect(result.stderr).toContain('Release is restricted to refs/heads/main.');
 
     const ok = spawnSync(process.execPath, [BRANCH_SCRIPT_PATH], {
       env: {
         ...process.env,
-        GITHUB_REF: 'refs/heads/dev',
-        RELEASE_BRANCH: 'dev',
+        GITHUB_REF: 'refs/heads/main',
+        RELEASE_BRANCH: 'main',
         RELEASE_DRY_RUN: 'false',
       },
       encoding: 'utf8',
@@ -136,7 +136,7 @@ describe('release scripts', () => {
       env: {
         ...process.env,
         GITHUB_REF: 'refs/heads/ci-verify/patch-1',
-        RELEASE_BRANCH: 'dev',
+        RELEASE_BRANCH: 'main',
         RELEASE_DRY_RUN: 'false',
       },
       encoding: 'utf8',
@@ -149,7 +149,7 @@ describe('release scripts', () => {
       env: {
         ...process.env,
         GITHUB_REF: 'refs/heads/ci-verify/patch-1',
-        RELEASE_BRANCH: 'dev',
+        RELEASE_BRANCH: 'main',
         RELEASE_DRY_RUN: 'true',
       },
       encoding: 'utf8',

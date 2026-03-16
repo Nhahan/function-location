@@ -3,10 +3,11 @@
 ## Branches
 
 - `main` is the default branch.
-- `dev` is the release branch. npm publish is allowed only from `dev`.
+- `main` is the release branch. npm publish is allowed only from `main`.
+- `dev` is the integration branch for ongoing development.
 - `ci-verify/<topic>` is the temporary branch for workflow validation.
 
-If a workflow change needs GitHub Actions verification, validate it on `ci-verify/<topic>` first and squash that branch back down before moving it onto `dev`.
+If a workflow change needs GitHub Actions verification, validate it on `ci-verify/<topic>` first, squash that branch back down before moving it onto `dev`, and promote the final release state to `main`.
 
 ## Runtime support
 
@@ -34,7 +35,7 @@ The root npm package ships only the JS wrapper and metadata. Native binaries are
   - compatibility smoke tests install the root tarball plus the matching platform tarball across Node `16/18/20/22/24`
   - publish order is platform packages first, then the root package
 
-`Release` dry-runs are allowed from `ci-verify/*`. Real publishes are restricted to `dev`.
+`Release` dry-runs are allowed from `ci-verify/*`. Real publishes are restricted to `main`.
 
 ## Packaging notes
 
