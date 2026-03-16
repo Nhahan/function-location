@@ -24,10 +24,11 @@ function makeRequireWithResolvedModules(modules: Record<string, unknown>): MockR
 
 describe('native loader', () => {
   test('maps the current runtime to a platform package name', () => {
-    expect(resolvePlatformPackageName('linux', 'x64')).toBe('function-location-linux-x64');
+    expect(resolvePlatformPackageName('linux', 'x64', 'glibc')).toBe('function-location-linux-x64');
     expect(resolvePlatformPackageName('win32', 'x64')).toBe('function-location-win32-x64');
     expect(resolvePlatformPackageName('darwin', 'x64')).toBe('function-location-darwin-x64');
     expect(resolvePlatformPackageName('darwin', 'arm64')).toBe('function-location-darwin-arm64');
+    expect(resolvePlatformPackageName('linux', 'x64', null)).toBeNull();
     expect(resolvePlatformPackageName('linux', 'arm64')).toBeNull();
   });
 
@@ -81,6 +82,22 @@ describe('native loader', () => {
         '/tmp/package-root',
       ),
     ).toThrow(`Unable to load native addon from installed platform package ${packageName}`);
+  });
+
+  test('throws a runtime-specific error for unsupported Linux libc targets', () => {
+    expect(() =>
+      createLocateLoader(
+        makeRequireWithResolvedModules({
+          // intentionally empty
+        }),
+        '/tmp/package-root',
+        {
+          platform: 'linux',
+          arch: 'x64',
+          libc: null,
+        },
+      ),
+    ).toThrow('Published native addon is unavailable for the current runtime');
   });
 
   test('throws when the loaded addon export is missing locate', () => {

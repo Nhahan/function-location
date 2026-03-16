@@ -16,6 +16,18 @@ type PlatformPackage = {
   name: string;
   platform: string;
   arch: string;
+  libc?: string[];
+};
+
+type RuntimeTarget = {
+  platform: string;
+  arch: string;
+  libc: string | null;
+};
+
+type PlatformPackageResolution = {
+  packageName: string | null;
+  unsupportedReason: string | null;
 };
 
 const DEFAULT_PACKAGE_DIR = resolveDefaultPackageDir();
@@ -24,8 +36,9 @@ const PLATFORM_PACKAGES = packageLayout.platformPackages as PlatformPackage[];
 export function createLocateLoader(
   requireFn: RequireFunction,
   packageDir = DEFAULT_PACKAGE_DIR,
+  runtimeTarget = resolveRuntimeTarget(),
 ): (input: Function) => string | undefined {
-  const imported = loadNativeAddon(requireFn, packageDir);
+  const imported = loadNativeAddon(requireFn, packageDir, runtimeTarget);
 
   if (!imported || typeof imported !== 'object' || !('locate' in imported)) {
     throw new Error('Loaded native addon does not export locate().');
@@ -43,14 +56,25 @@ export function createLocateLoader(
 export function resolvePlatformPackageName(
   platform = process.platform,
   arch = process.arch,
+  libc = platform === 'linux' ? detectLinuxLibc() : null,
 ): string | null {
-  const match = PLATFORM_PACKAGES.find((entry) => entry.platform === platform && entry.arch === arch);
-  return match ? match.name : null;
+  return resolvePlatformPackage(platform, arch, libc).packageName;
 }
 
-function loadNativeAddon(requireFn: RequireFunction, packageDir: string): NativeAddon {
-  const platformPackageName = resolvePlatformPackageName();
-  let platformError: Error | null = null;
+function loadNativeAddon(
+  requireFn: RequireFunction,
+  packageDir: string,
+  runtimeTarget: RuntimeTarget,
+): NativeAddon {
+  const resolution = resolvePlatformPackage(
+    runtimeTarget.platform,
+    runtimeTarget.arch,
+    runtimeTarget.libc,
+  );
+  const platformPackageName = resolution.packageName;
+  let platformError: Error | null = resolution.unsupportedReason
+    ? new Error(resolution.unsupportedReason)
+    : null;
 
   if (platformPackageName) {
     try {
@@ -69,13 +93,66 @@ function loadNativeAddon(requireFn: RequireFunction, packageDir: string): Native
       throw resolvedLocalError;
     }
 
+    const platformMessage = platformPackageName
+      ? `Unable to load native addon from installed platform package ${platformPackageName} (${platformError.message}).`
+      : `Published native addon is unavailable for the current runtime (${platformError.message}).`;
+
     throw new Error(
       [
-        `Unable to load native addon from installed platform package ${platformPackageName} (${platformError.message}).`,
+        platformMessage,
         `Local fallback from ${packageDir} also failed (${resolvedLocalError.message}).`,
       ].join(' '),
     );
   }
+}
+
+function resolveRuntimeTarget(): RuntimeTarget {
+  return {
+    platform: process.platform,
+    arch: process.arch,
+    libc: process.platform === 'linux' ? detectLinuxLibc() : null,
+  };
+}
+
+function detectLinuxLibc(): string | null {
+  const report = process.report?.getReport?.() as { header?: { glibcVersionRuntime?: unknown } } | undefined;
+  const glibcVersionRuntime = report?.header?.glibcVersionRuntime;
+
+  return typeof glibcVersionRuntime === 'string' && glibcVersionRuntime.length > 0
+    ? 'glibc'
+    : null;
+}
+
+function resolvePlatformPackage(
+  platform: string,
+  arch: string,
+  libc: string | null,
+): PlatformPackageResolution {
+  const matches = PLATFORM_PACKAGES.filter((entry) => entry.platform === platform && entry.arch === arch);
+  if (matches.length === 0) {
+    return {
+      packageName: null,
+      unsupportedReason: null,
+    };
+  }
+
+  const match = matches.find((entry) => !entry.libc || (libc !== null && entry.libc.includes(libc)));
+  if (match) {
+    return {
+      packageName: match.name,
+      unsupportedReason: null,
+    };
+  }
+
+  const supportedLibcs = Array.from(
+    new Set(matches.flatMap((entry) => entry.libc || [])),
+  );
+  const runtimeLabel = libc ? `${platform}-${arch} (${libc})` : `${platform}-${arch}`;
+
+  return {
+    packageName: null,
+    unsupportedReason: `No published native addon is available for ${runtimeLabel}. Supported libc for this target: ${supportedLibcs.join(', ')}.`,
+  };
 }
 
 function resolveDefaultPackageDir(): string {
