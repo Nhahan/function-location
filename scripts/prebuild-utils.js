@@ -69,7 +69,6 @@ function getPlatformPackageDir(entry, rootDir = process.cwd()) {
 }
 
 function normalizeTarget(target, currentVersion) {
-  const current = parseNodeVersion(currentVersion);
   const match = NODE_VERSION_PATTERN.exec(target);
 
   if (!match || !match.groups) {
@@ -83,22 +82,12 @@ function normalizeTarget(target, currentVersion) {
     throw new Error(`Unsupported prebuild target "${target}". Supported majors: ${SUPPORTED_NODE_TARGETS.map((entry) => entry.major).join(', ')}.`);
   }
 
-  if (target.endsWith('.x')) {
-    if (major !== current.major) {
-      throw new Error(
-        `Prebuild target "${target}" must match running Node major (${current.major}) when major-only wildcard is used.`,
-      );
-    }
-
-    return `${current.major}.${current.minor}.${current.patch}`;
+  if (target.endsWith('.x') || match.groups.minor === undefined) {
+    return supportedMajor.version;
   }
 
   if (match.groups.patch === undefined) {
-    return `${major}.${match.groups.minor || current.minor}.${current.patch}`;
-  }
-
-  if (match.groups.minor === undefined) {
-    return `${major}.${current.minor}.${current.patch}`;
+    return `${major}.${match.groups.minor}.0`;
   }
 
   return target;

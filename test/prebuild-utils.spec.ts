@@ -17,10 +17,10 @@ function withDefaultStrip(args: string[]) {
 }
 
 describe('prebuild-utils', () => {
-  test('normalizes wildcard target for current Node major', () => {
-    expect(parseTargetList('22.x', '22.18.0')[0]).toBe('22.18.0');
-    expect(parseTargetList('22', '22.18.0')[0]).toBe('22.18.0');
-    expect(parseTargetList('22.5', '22.18.0')[0]).toBe('22.5.0');
+  test('normalizes shorthand targets to supported release versions', () => {
+    expect(parseTargetList('22.x', '24.14.0')[0]).toBe('22.22.1');
+    expect(parseTargetList('22', '24.14.0')[0]).toBe('22.22.1');
+    expect(parseTargetList('22.5', '24.14.0')[0]).toBe('22.5.0');
   });
 
   test('normalizes full version target', () => {
@@ -31,8 +31,8 @@ describe('prebuild-utils', () => {
     expect(() => parseTargetList('14.x', '22.18.0')).toThrow(/Unsupported prebuild target/);
   });
 
-  test('throws when wildcard major mismatches current Node major', () => {
-    expect(() => parseTargetList('20.x', '22.18.0')).toThrow(/must match running Node major/);
+  test('normalizes wildcard targets to the supported release version for that major', () => {
+    expect(parseTargetList('20.x', '22.18.0')[0]).toBe('20.20.1');
   });
 
   test('build args include expected defaults', () => {
@@ -46,7 +46,7 @@ describe('prebuild-utils', () => {
       { PREBUILD_TARGETS: 'ignored' },
       '22.18.0',
     );
-    expect(buildPrebuildArgs(options)).toEqual(['-t', '22.18.0', '--napi']);
+    expect(buildPrebuildArgs(options)).toEqual(['-t', '22.22.1', '--napi']);
   });
 
   test('uses the 16+ target table', () => {
