@@ -7,9 +7,14 @@ const BRANCH_SCRIPT_PATH = path.join(process.cwd(), 'scripts', 'verify-release-b
 const TAR_SCRIPT_PATH = path.join(process.cwd(), 'scripts', 'create-package-tarball.js');
 const {
   applyDryRunVersion,
+  createPublishVersion,
   createDryRunVersion,
 } = require('../scripts/prepare-dry-run-publish');
-const { assertVersionAlignment, getPublishedPackages } = require('../scripts/package-metadata');
+const {
+  assertVersionAlignment,
+  getPublishedPackages,
+  getPublishedPackageSpecs,
+} = require('../scripts/package-metadata');
 const rootPackageJson = require('../package.json');
 
 describe('release scripts', () => {
@@ -77,6 +82,37 @@ describe('release scripts', () => {
   test('dry-run publish versions are rewritten to unique prereleases', () => {
     expect(createDryRunVersion('1.0.0', 'dryrun.123')).toBe('1.0.0-dryrun.123');
     expect(createDryRunVersion('1.0.0-beta.1', 'dryrun.123')).toBe('1.0.0-beta.1.dryrun.123');
+    expect(createPublishVersion('1.0.0', 'beta.42.1')).toBe('1.0.0-beta.42.1');
+  });
+
+  test('publish package specs can be rewritten to beta prerelease versions', () => {
+    expect(getPublishedPackageSpecs('beta.42.1', process.cwd())).toEqual([
+      {
+        name: 'function-location',
+        version: `${rootPackageJson.version}-beta.42.1`,
+        packageDir: process.cwd(),
+      },
+      {
+        name: 'function-location-linux-x64',
+        version: `${rootPackageJson.version}-beta.42.1`,
+        packageDir: path.join(process.cwd(), 'packages/function-location-linux-x64'),
+      },
+      {
+        name: 'function-location-win32-x64',
+        version: `${rootPackageJson.version}-beta.42.1`,
+        packageDir: path.join(process.cwd(), 'packages/function-location-win32-x64'),
+      },
+      {
+        name: 'function-location-darwin-x64',
+        version: `${rootPackageJson.version}-beta.42.1`,
+        packageDir: path.join(process.cwd(), 'packages/function-location-darwin-x64'),
+      },
+      {
+        name: 'function-location-darwin-arm64',
+        version: `${rootPackageJson.version}-beta.42.1`,
+        packageDir: path.join(process.cwd(), 'packages/function-location-darwin-arm64'),
+      },
+    ]);
   });
 
   test('dry-run publish keeps platform package versions aligned in the root manifest', () => {

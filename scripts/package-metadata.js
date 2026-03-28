@@ -5,6 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const layout = require('../config/package-layout.json');
+const { createPublishVersion } = require('./prepare-dry-run-publish');
 
 function readPackageJson(packageDir) {
   return JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'));
@@ -70,9 +71,17 @@ function getPublishedPackages(rootDir = process.cwd()) {
   }));
 }
 
-function main() {
+function getPublishedPackageSpecs(versionSuffix = '', rootDir = process.cwd()) {
+  return getPublishedPackages(rootDir).map((entry) => ({
+    ...entry,
+    version: versionSuffix ? createPublishVersion(entry.version, versionSuffix) : entry.version,
+  }));
+}
+
+function main(env = process.env) {
   try {
-    process.stdout.write(`${JSON.stringify(getPublishedPackages())}\n`);
+    const versionSuffix = env.PUBLISH_VERSION_SUFFIX || '';
+    process.stdout.write(`${JSON.stringify(getPublishedPackageSpecs(versionSuffix))}\n`);
   } catch (error) {
     console.error(error.message);
     process.exit(1);
@@ -87,6 +96,7 @@ module.exports = {
   assertVersionAlignment,
   getPlatformPackageManifests,
   getPublishedPackages,
+  getPublishedPackageSpecs,
   getRootPackage,
   readPackageJson,
 };

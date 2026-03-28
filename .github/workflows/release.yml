@@ -4,10 +4,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.dry_run }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       dry_run:
@@ -27,7 +30,7 @@ jobs:
       - name: Enforce release branch
         run: |
           RELEASE_BRANCH=main \
-            RELEASE_DRY_RUN=${{ inputs.dry_run }} \
+            RELEASE_DRY_RUN=${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }} \
             GITHUB_REF=${{ github.ref }} \
             node ./scripts/verify-release-branch.js
 
@@ -272,20 +275,32 @@ jobs:
 
       - name: Verify package metadata alignment
         id: package_metadata
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
         run: |
-          packages_json="$(node ./scripts/package-metadata.js)"
           root_name="$(node -p "require('./package.json').name")"
           root_version="$(node -p "require('./package.json').version")"
-          publish_tag="$(node -p "require('./package.json').version.includes('-') ? 'next' : 'latest'")"
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            publish_tag="beta"
+            publish_version_suffix="beta.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+          else
+            publish_tag="$(node -p "require('./package.json').version.includes('-') ? 'next' : 'latest'")"
+            publish_version_suffix=""
+          fi
+
+          packages_json="$(PUBLISH_VERSION_SUFFIX="$publish_version_suffix" node ./scripts/package-metadata.js)"
 
           printf '%s\n' "$packages_json" > "$RUNNER_TEMP/release-packages.json"
 
           echo "root_name=$root_name" >> "$GITHUB_OUTPUT"
           echo "root_version=$root_version" >> "$GITHUB_OUTPUT"
           echo "publish_tag=$publish_tag" >> "$GITHUB_OUTPUT"
+          echo "publish_version_suffix=$publish_version_suffix" >> "$GITHUB_OUTPUT"
 
       - name: Verify release versions are new
-        if: ${{ !inputs.dry_run }}
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         run: |
           node - "$RUNNER_TEMP/release-packages.json" <<'EOF' > "$RUNNER_TEMP/release-package-specs.txt"
           const fs = require('fs');
@@ -311,11 +326,11 @@ jobs:
           done < "$RUNNER_TEMP/release-package-specs.txt"
 
       - name: Skip version uniqueness check for dry run
-        if: ${{ inputs.dry_run }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         run: echo "Dry run enabled; skipping npm version uniqueness enforcement."
 
       - name: Build .npm auth config
-        if: ${{ !inputs.dry_run }}
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -327,7 +342,7 @@ jobs:
           echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/npmrc" >> "$GITHUB_ENV"
 
       - name: Dry run publish
-        if: ${{ inputs.dry_run }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         shell: bash
         run: |
           dry_run_suffix="dryrun.${GITHUB_RUN_ID}"
@@ -368,9 +383,10 @@ jobs:
           npm publish "$prepared_root_dir" --access public --dry-run --ignore-scripts --tag dry-run
 
       - name: Publish packages
-        if: ${{ !inputs.dry_run }}
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         shell: bash
         run: |
+          publish_version_suffix="${{ steps.package_metadata.outputs.publish_version_suffix }}"
           root_tarball="$(find "artifacts/package-function-location" -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
           mapfile -t platform_names < <(node - "$RUNNER_TEMP/release-packages.json" <<'EOF'
           const fs = require('fs');
@@ -393,7 +409,21 @@ jobs:
               echo "Missing tarball for $package_name."
               exit 1
             fi
-            npm publish "$tarball" --access public --tag "${{ steps.package_metadata.outputs.publish_tag }}"
+            if [ -n "$publish_version_suffix" ]; then
+              staging_dir="$RUNNER_TEMP/publish/$package_name"
+              rm -rf "$staging_dir"
+              prepared_dir="$(node ./scripts/prepare-dry-run-publish.js --tarball="$tarball" --out-dir="$staging_dir" --version-suffix="$publish_version_suffix")"
+              npm publish "$prepared_dir" --access public --tag "${{ steps.package_metadata.outputs.publish_tag }}"
+            else
+              npm publish "$tarball" --access public --tag "${{ steps.package_metadata.outputs.publish_tag }}"
+            fi
           done
 
-          npm publish "$root_tarball" --access public --tag "${{ steps.package_metadata.outputs.publish_tag }}"
+          if [ -n "$publish_version_suffix" ]; then
+            root_staging_dir="$RUNNER_TEMP/publish/function-location"
+            rm -rf "$root_staging_dir"
+            prepared_root_dir="$(node ./scripts/prepare-dry-run-publish.js --tarball="$root_tarball" --out-dir="$root_staging_dir" --version-suffix="$publish_version_suffix")"
+            npm publish "$prepared_root_dir" --access public --tag "${{ steps.package_metadata.outputs.publish_tag }}"
+          else
+            npm publish "$root_tarball" --access public --tag "${{ steps.package_metadata.outputs.publish_tag }}"
+          fi

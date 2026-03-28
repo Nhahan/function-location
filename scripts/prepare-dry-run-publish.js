@@ -15,15 +15,15 @@ function parseArgValue(argv, name) {
   return arg ? arg.slice(prefix.length) : '';
 }
 
-function createDryRunVersion(version, suffix) {
+function createPublishVersion(version, suffix) {
   if (!suffix) {
-    throw new Error('Dry-run version suffix is required.');
+    throw new Error('Publish version suffix is required.');
   }
 
   return version.includes('-') ? `${version}.${suffix}` : `${version}-${suffix}`;
 }
 
-function applyDryRunVersion(manifest, version) {
+function applyPublishVersion(manifest, version) {
   const updated = {
     ...manifest,
     version,
@@ -65,15 +65,15 @@ function stageDryRunPublishDirectory(sourceTarball, outputDir, versionSuffix, ex
   }
 
   const manifest = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-  const dryRunVersion = createDryRunVersion(manifest.version, versionSuffix);
-  const stagedManifest = applyDryRunVersion(manifest, dryRunVersion);
+  const publishVersion = createPublishVersion(manifest.version, versionSuffix);
+  const stagedManifest = applyPublishVersion(manifest, publishVersion);
 
   fs.writeFileSync(packageJsonPath, `${JSON.stringify(stagedManifest, null, 2)}\n`);
 
   return {
     name: stagedManifest.name,
     packageDir,
-    version: dryRunVersion,
+    version: publishVersion,
   };
 }
 
@@ -102,8 +102,10 @@ if (require.main === module) {
 }
 
 module.exports = {
-  applyDryRunVersion,
-  createDryRunVersion,
+  applyDryRunVersion: applyPublishVersion,
+  applyPublishVersion,
+  createDryRunVersion: createPublishVersion,
+  createPublishVersion,
   extractTarball,
   parseArgValue,
   stageDryRunPublishDirectory,

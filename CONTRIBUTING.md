@@ -35,7 +35,9 @@ The root npm package ships only the JS wrapper and metadata. Native binaries are
   - compatibility smoke tests install the root tarball plus the matching platform tarball across Node `16/18/20/22/24`
   - publish order is platform packages first, then the root package
 
-`Release` dry-runs are allowed from `ci-verify/*`. Real publishes are restricted to `main`.
+Pushes to `main` publish unique `beta` prereleases under the npm `beta` dist-tag, so plain `npm install function-location` keeps resolving to the latest stable release.
+
+`Release` dry-runs are allowed from `ci-verify/*`. Stable publishes are restricted to manual releases from `main`.
 
 ## Packaging notes
 
