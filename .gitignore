@@ -14,9 +14,13 @@ prebuilds/
 native/build/
 packages/*/prebuilds/
 artifacts/
+coverage/
+*.tsbuildinfo/
 
 # Local IDE / OS files
 .idea/
+.omc/
+.vscode/
 .DS_Store
 
 # Local guidance files
