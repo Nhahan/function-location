@@ -245,15 +245,15 @@ static napi_value GetFunctionLocation(napi_env env, napi_callback_info info) {
 
 static napi_value Initialize(napi_env env, napi_value exports) {
   napi_value function;
-  napi_status status = napi_create_function(env, "locate", NAPI_AUTO_LENGTH, GetFunctionLocation, nullptr, &function);
+  napi_status status = napi_create_function(env, "locateV8", NAPI_AUTO_LENGTH, GetFunctionLocation, nullptr, &function);
   if (status != napi_ok) {
-    napi_throw_error(env, nullptr, "Failed to create locate function");
+    napi_throw_error(env, nullptr, "Failed to create locateV8 function");
     return NULL;
   }
 
-  status = napi_set_named_property(env, exports, "locate", function);
+  status = napi_set_named_property(env, exports, "locateV8", function);
   if (status != napi_ok) {
-    napi_throw_error(env, nullptr, "Failed to export locate function");
+    napi_throw_error(env, nullptr, "Failed to export locateV8 function");
     return NULL;
   }
 

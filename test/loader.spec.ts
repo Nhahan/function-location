@@ -1,4 +1,4 @@
-import { createLocateLoader, resolvePlatformPackageName } from '../lib/loader';
+import { createLocateV8Loader, resolvePlatformPackageName } from '../lib/loader';
 
 type MockRequire = {
   (path: string): unknown;
@@ -33,15 +33,15 @@ describe('native loader', () => {
   });
 
   test('loads addon through the installed platform package when available', () => {
-    const locate = (input: Function): string | undefined => input.name;
+    const locateV8 = (input: Function): string | undefined => input.name;
     const named = function namedForLoaderTest() {};
     const packageName = resolvePlatformPackageName();
 
     expect(packageName).not.toBeNull();
 
-    const located = createLocateLoader(
+    const located = createLocateV8Loader(
       makeRequireWithResolvedModules({
-        [packageName as string]: { locate },
+        [packageName as string]: { locateV8 },
       }),
     );
 
@@ -50,14 +50,14 @@ describe('native loader', () => {
   });
 
   test('falls back to node-gyp-build when the platform package is missing', () => {
-    const locate = (input: Function): string | undefined => input.name;
-    const nodeGypBuild = jest.fn(() => ({ locate }));
+    const locateV8 = (input: Function): string | undefined => input.name;
+    const nodeGypBuild = jest.fn(() => ({ locateV8 }));
     const packageName = resolvePlatformPackageName();
     const named = function namedForLoaderFallbackTest() {};
 
     expect(packageName).not.toBeNull();
 
-    const located = createLocateLoader(
+    const located = createLocateV8Loader(
       makeRequireWithResolvedModules({
         'node-gyp-build': nodeGypBuild,
       }),
@@ -75,7 +75,7 @@ describe('native loader', () => {
     expect(packageName).not.toBeNull();
 
     expect(() =>
-      createLocateLoader(
+      createLocateV8Loader(
         makeRequireWithResolvedModules({
           // intentionally empty
         }),
@@ -86,7 +86,7 @@ describe('native loader', () => {
 
   test('throws a runtime-specific error for unsupported Linux libc targets', () => {
     expect(() =>
-      createLocateLoader(
+      createLocateV8Loader(
         makeRequireWithResolvedModules({
           // intentionally empty
         }),
@@ -100,31 +100,31 @@ describe('native loader', () => {
     ).toThrow('Published native addon is unavailable for the current runtime');
   });
 
-  test('throws when the loaded addon export is missing locate', () => {
+  test('throws when the loaded addon export is missing locateV8', () => {
     const packageName = resolvePlatformPackageName();
 
     expect(packageName).not.toBeNull();
 
     expect(() =>
-      createLocateLoader(
+      createLocateV8Loader(
         makeRequireWithResolvedModules({
-          [packageName as string]: { notLocate: 'missing' },
+          [packageName as string]: { notLocateV8: 'missing' },
         }),
       ),
-    ).toThrow('does not export locate()');
+    ).toThrow('does not export locateV8()');
   });
 
-  test('throws when locate export has invalid type', () => {
+  test('throws when locateV8 export has invalid type', () => {
     const packageName = resolvePlatformPackageName();
 
     expect(packageName).not.toBeNull();
 
     expect(() =>
-      createLocateLoader(
+      createLocateV8Loader(
         makeRequireWithResolvedModules({
-          [packageName as string]: { locate: 'not-a-function' },
+          [packageName as string]: { locateV8: 'not-a-function' },
         }),
       ),
-    ).toThrow('exports locate with invalid type');
+    ).toThrow('exports locateV8 with invalid type');
   });
 });

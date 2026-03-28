@@ -1,7 +1,7 @@
-import { createLocateLoader } from './loader';
+import { createLocateV8Loader } from './loader';
 
-const nativeLocate = createLocateLoader(require);
+const nativeLocateV8 = createLocateV8Loader(require);
 
-export function locate(input: Function): string | undefined {
-    return nativeLocate(input);
+export function locateV8(input: Function): string | undefined {
+    return nativeLocateV8(input);
 }

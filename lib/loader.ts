@@ -9,7 +9,7 @@ type RequireFunction = {
 
 type NodeGypBuildLoader = (directory: string) => unknown;
 type NativeAddon = {
-  locate?: unknown;
+  locateV8?: unknown;
 };
 
 type PlatformPackage = {
@@ -33,24 +33,24 @@ type PlatformPackageResolution = {
 const DEFAULT_PACKAGE_DIR = resolveDefaultPackageDir();
 const PLATFORM_PACKAGES = packageLayout.platformPackages as PlatformPackage[];
 
-export function createLocateLoader(
+export function createLocateV8Loader(
   requireFn: RequireFunction,
   packageDir = DEFAULT_PACKAGE_DIR,
   runtimeTarget = resolveRuntimeTarget(),
 ): (input: Function) => string | undefined {
   const imported = loadNativeAddon(requireFn, packageDir, runtimeTarget);
 
-  if (!imported || typeof imported !== 'object' || !('locate' in imported)) {
-    throw new Error('Loaded native addon does not export locate().');
+  if (!imported || typeof imported !== 'object' || !('locateV8' in imported)) {
+    throw new Error('Loaded native addon does not export locateV8().');
   }
 
-  const { locate } = imported as NativeAddon;
+  const { locateV8 } = imported as NativeAddon;
 
-  if (typeof locate !== 'function') {
-    throw new Error(`Loaded native addon exports locate with invalid type (${typeof locate}).`);
+  if (typeof locateV8 !== 'function') {
+    throw new Error(`Loaded native addon exports locateV8 with invalid type (${typeof locateV8}).`);
   }
 
-  return locate as (input: Function) => string | undefined;
+  return locateV8 as (input: Function) => string | undefined;
 }
 
 export function resolvePlatformPackageName(

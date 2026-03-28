@@ -1,6 +1,6 @@
 # function-location
 
-`locate()` returns the absolute source file path for a function or class at runtime.
+`locateV8()` returns the absolute source file path for a function or class at runtime.
 
 [![npm](https://img.shields.io/npm/v/function-location.svg)](https://www.npmjs.com/package/function-location)
 [![CI](https://img.shields.io/github/actions/workflow/status/Nhahan/function-location/ci.yml?branch=main)](https://github.com/Nhahan/function-location/actions/workflows/ci.yml)
@@ -16,18 +16,18 @@ Supports Node.js `16+`.
 ## Usage
 
 ```ts
-import { locate } from 'function-location';
+import { locateV8 } from 'function-location';
 
 class ExampleClass {}
 function exampleFunction() {}
 
-locate(ExampleClass);     // /path/to/file.ts
-locate(exampleFunction);  // /path/to/file.ts
+locateV8(ExampleClass);     // /path/to/file.ts
+locateV8(exampleFunction);  // /path/to/file.ts
 ```
 
 ## API
 
-- `locate(input: Function): string | undefined`
+- `locateV8(input: Function): string | undefined`
 - Throws `Function argument expected` when input is not a function/class constructor.
 - Returns `undefined` for anonymous/native/builtins where metadata is unavailable.
 

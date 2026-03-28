@@ -1,4 +1,4 @@
-import { locate } from '../dist/lib';
+import { locateV8 } from '../dist/lib';
 
 export class TestClass {
 }
@@ -6,19 +6,19 @@ export class TestClass {
 export function TestFunction() {
 }
 
-describe('locate', () => {
+describe('locateV8', () => {
   test('class path success', () => {
-    const classPath = locate(TestClass);
+    const classPath = locateV8(TestClass);
     expect(classPath).toEqual(__filename);
   });
 
   test('function path success', () => {
-    const functionPath = locate(TestFunction);
+    const functionPath = locateV8(TestFunction);
     expect(functionPath).toEqual(__filename);
   });
 
   test('throws when input is not a function', () => {
-    expect(() => locate({} as unknown as Function)).toThrow(
+    expect(() => locateV8({} as unknown as Function)).toThrow(
       'Function argument expected',
     );
   });
