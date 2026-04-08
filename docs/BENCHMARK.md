@@ -4,7 +4,7 @@ This document records the current sample benchmark shown in the README.
 
 ## Scope
 
-- Comparison target: `locate()` vs an inspector-protocol baseline
+- Comparison target: `locateV8()` vs an inspector-protocol baseline
 - Inputs: one function and one class constructor
 - Validation: both approaches were checked to resolve the same source location before timing
 - Measurement: median of repeated rounds
@@ -22,12 +22,12 @@ This document records the current sample benchmark shown in the README.
 
 | Approach | Median latency / call | Relative speed |
 | --- | ---: | ---: |
-| `locate` | `0.1197 µs` | `1878.60x faster` |
+| `locateV8` | `0.1197 µs` | `1878.60x faster` |
 | `inspector protocol` | `224.8900 µs` | `baseline` |
 
 ## Raw samples
 
-Native `locate()` samples, µs/call:
+Native `locateV8()` samples, µs/call:
 
 ```text
 0.1325

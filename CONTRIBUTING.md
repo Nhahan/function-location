@@ -44,4 +44,4 @@ Pushes to `main` publish unique `beta` prereleases under the npm `beta` dist-tag
 - Generated `.node` binaries are CI artifacts only and must not be committed.
 - The root package depends on exact-version `optionalDependencies` for the platform packages. Keep those versions aligned.
 - Repository installs should use `npm install --omit=optional` because the platform packages are release artifacts, not local workspace dependencies.
-- The public API is `locate()`. Internal runtime details such as V8 access should not leak into the exported API surface.
+- The public API is `locateV8()`. Internal runtime details such as V8 access should not leak into the exported API surface.
