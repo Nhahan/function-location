@@ -130,7 +130,7 @@ async function main(argv = process.argv.slice(2)) {
   const rounds = parsePositiveInteger(argv, 'rounds', 10);
   const nativeIterations = parsePositiveInteger(argv, 'native-iterations', 200000);
   const inspectorIterations = parsePositiveInteger(argv, 'inspector-iterations', 100);
-  const { locate } = require(distEntry);
+  const { locateV8 } = require(distEntry);
 
   class ExampleClass {}
   function exampleFunction() {}
@@ -139,12 +139,12 @@ async function main(argv = process.argv.slice(2)) {
   globalThis.__functionLocationBenchmarkClass = ExampleClass;
 
   const expectedPath = path.resolve(__filename);
-  const nativeFunctionPath = locate(exampleFunction);
-  const nativeClassPath = locate(ExampleClass);
+  const nativeFunctionPath = locateV8(exampleFunction);
+  const nativeClassPath = locateV8(ExampleClass);
 
   if (nativeFunctionPath !== expectedPath || nativeClassPath !== expectedPath) {
     throw new Error(
-      `Native locate() validation failed. expected=${expectedPath} function=${String(nativeFunctionPath)} class=${String(nativeClassPath)}`,
+      `Native locateV8() validation failed. expected=${expectedPath} function=${String(nativeFunctionPath)} class=${String(nativeClassPath)}`,
     );
   }
 
@@ -171,8 +171,8 @@ async function main(argv = process.argv.slice(2)) {
     for (let round = 0; round < rounds; round += 1) {
       const startedAt = process.hrtime.bigint();
       for (let iteration = 0; iteration < nativeIterations; iteration += 1) {
-        locate(exampleFunction);
-        locate(ExampleClass);
+        locateV8(exampleFunction);
+        locateV8(ExampleClass);
       }
       const elapsed = process.hrtime.bigint() - startedAt;
       nativeSamples.push(toMicroseconds(elapsed) / (nativeIterations * 2));
@@ -210,7 +210,7 @@ async function main(argv = process.argv.slice(2)) {
     process.stdout.write(`- inspector iterations/round: ${inspectorIterations}\n\n`);
     process.stdout.write(`| Approach | Median time / call | Relative speed |\n`);
     process.stdout.write(`| --- | ---: | ---: |\n`);
-    process.stdout.write(`| locate | ${formatFixed(nativeMedian, 4)} µs | ${formatFixed(relativeSpeed, 2)}x faster |\n`);
+    process.stdout.write(`| locateV8 | ${formatFixed(nativeMedian, 4)} µs | ${formatFixed(relativeSpeed, 2)}x faster |\n`);
     process.stdout.write(`| inspector protocol | ${formatFixed(inspectorMedian, 4)} µs | baseline |\n\n`);
     process.stdout.write(`Native samples (µs/call): ${nativeSamples.map((value) => formatFixed(value, 4)).join(', ')}\n`);
     process.stdout.write(`Inspector samples (µs/call): ${inspectorSamples.map((value) => formatFixed(value, 4)).join(', ')}\n`);

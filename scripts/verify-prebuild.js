@@ -52,27 +52,27 @@ function verifyExpectedPrebuildFiles(packageDir, platformDirName, packageName) {
   }
 }
 
+function getPrebuildSmokeScriptSource(packageDir) {
+  return [
+    "const path = require('path');",
+    `const { locateV8 } = require(${JSON.stringify(packageDir)});`,
+    'function smokeFixture() {}',
+    'const expected = path.resolve(__filename);',
+    'const located = locateV8(smokeFixture);',
+    'if (located !== expected) {',
+    "  console.error(JSON.stringify({ expected, located }));",
+    '  process.exit(1);',
+    '}',
+    "console.log(JSON.stringify({ expected, located }));",
+    '',
+  ].join('\n');
+}
+
 function runPrebuildSmokeTest(packageDir) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'function-location-prebuild-'));
   const tempFile = path.join(tempDir, 'smoke.js');
 
-  fs.writeFileSync(
-    tempFile,
-    [
-      "const path = require('path');",
-      `const { locate } = require(${JSON.stringify(packageDir)});`,
-      'function smokeFixture() {}',
-      'const expected = path.resolve(__filename);',
-      'const located = locate(smokeFixture);',
-      'if (located !== expected) {',
-      "  console.error(JSON.stringify({ expected, located }));",
-      '  process.exit(1);',
-      '}',
-      "console.log(JSON.stringify({ expected, located }));",
-      '',
-    ].join('\n'),
-    'utf8',
-  );
+  fs.writeFileSync(tempFile, getPrebuildSmokeScriptSource(packageDir), 'utf8');
 
   try {
     const result = spawnSync(process.execPath, [tempFile], {
@@ -135,6 +135,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  getPrebuildSmokeScriptSource,
   getNodeBinaries,
   hasNodeBinary,
   runPrebuildSmokeTest,

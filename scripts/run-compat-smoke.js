@@ -116,13 +116,13 @@ function getNpmCommandSpec() {
   };
 }
 
-function writeSmokeScript(targetPath) {
-  var source = [
+function getSmokeScriptSource() {
+  return [
     "var path = require('path');",
     "var lib = require('function-location');",
     'function smoke() {}',
     'var expected = path.resolve(__filename);',
-    'var located = lib.locate(smoke);',
+    'var located = lib.locateV8(smoke);',
     'if (located !== expected) {',
     "  console.error(JSON.stringify({ expected: expected, located: located, arch: process.arch, version: process.version }));",
     '  process.exit(1);',
@@ -130,8 +130,10 @@ function writeSmokeScript(targetPath) {
     "console.log(JSON.stringify({ expected: expected, located: located, arch: process.arch, version: process.version }));",
     '',
   ].join('\n');
+}
 
-  fs.writeFileSync(targetPath, source, 'utf8');
+function writeSmokeScript(targetPath) {
+  fs.writeFileSync(targetPath, getSmokeScriptSource(), 'utf8');
 }
 
 function assertRuntimeContext(options) {
@@ -219,6 +221,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  getSmokeScriptSource: getSmokeScriptSource,
   getNpmCommandSpec: getNpmCommandSpec,
   parseArgs: parseArgs,
   readDarwinExecutionContext: readDarwinExecutionContext,

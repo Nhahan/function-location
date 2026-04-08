@@ -1,6 +1,18 @@
-const { parseArgs, getNpmCommandSpec, resolveNpmCliPath } = require('../scripts/run-compat-smoke');
+const {
+  parseArgs,
+  getNpmCommandSpec,
+  getSmokeScriptSource,
+  resolveNpmCliPath,
+} = require('../scripts/run-compat-smoke');
 
 describe('run-compat-smoke', () => {
+  test('uses locateV8 in the compatibility smoke script', () => {
+    const source = getSmokeScriptSource();
+
+    expect(source).toContain('var located = lib.locateV8(smoke);');
+    expect(source).not.toContain('lib.locate(smoke)');
+  });
+
   test('parses compatibility smoke arguments', () => {
     expect(
       parseArgs([
