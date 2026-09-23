@@ -6,10 +6,9 @@ import { spawnSync } from 'node:child_process';
 const BRANCH_SCRIPT_PATH = path.join(process.cwd(), 'scripts', 'verify-release-branch.js');
 const TAR_SCRIPT_PATH = path.join(process.cwd(), 'scripts', 'create-package-tarball.js');
 const {
-  applyDryRunVersion,
+  applyPublishVersion,
   createPublishVersion,
-  createDryRunVersion,
-} = require('../scripts/prepare-dry-run-publish');
+} = require('../scripts/stage-publish');
 const {
   assertVersionAlignment,
   getPublishedPackages,
@@ -80,8 +79,8 @@ describe('release scripts', () => {
   });
 
   test('dry-run publish versions are rewritten to unique prereleases', () => {
-    expect(createDryRunVersion('1.0.0', 'dryrun.123')).toBe('1.0.0-dryrun.123');
-    expect(createDryRunVersion('1.0.0-beta.1', 'dryrun.123')).toBe('1.0.0-beta.1.dryrun.123');
+    expect(createPublishVersion('1.0.0', 'dryrun.123')).toBe('1.0.0-dryrun.123');
+    expect(createPublishVersion('1.0.0-beta.1', 'dryrun.123')).toBe('1.0.0-beta.1.dryrun.123');
     expect(createPublishVersion('1.0.0', 'beta.42.1')).toBe('1.0.0-beta.42.1');
   });
 
@@ -116,7 +115,7 @@ describe('release scripts', () => {
   });
 
   test('dry-run publish keeps platform package versions aligned in the root manifest', () => {
-    const updated = applyDryRunVersion(
+    const updated = applyPublishVersion(
       {
         name: 'function-location',
         version: '1.0.0',

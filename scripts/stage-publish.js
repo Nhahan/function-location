@@ -46,7 +46,7 @@ function extractTarball(sourceTarball, outputDir, executor = execFileSync) {
   executor('tar', ['-xzf', sourceTarball, '-C', outputDir]);
 }
 
-function stageDryRunPublishDirectory(sourceTarball, outputDir, versionSuffix, executor = execFileSync) {
+function stagePublishDirectory(sourceTarball, outputDir, versionSuffix, executor = execFileSync) {
   const resolvedTarball = path.resolve(sourceTarball);
   const resolvedOutputDir = path.resolve(outputDir);
 
@@ -84,11 +84,11 @@ function main(argv = process.argv.slice(2)) {
 
   if (!tarball || !outputDir || !versionSuffix) {
     throw new Error(
-      'Usage: node ./scripts/prepare-dry-run-publish.js --tarball=<path> --out-dir=<path> --version-suffix=<suffix>',
+      'Usage: node ./scripts/stage-publish.js --tarball=<path> --out-dir=<path> --version-suffix=<suffix>',
     );
   }
 
-  const staged = stageDryRunPublishDirectory(tarball, outputDir, versionSuffix);
+  const staged = stagePublishDirectory(tarball, outputDir, versionSuffix);
   process.stdout.write(`${staged.packageDir}\n`);
 }
 
@@ -102,11 +102,9 @@ if (require.main === module) {
 }
 
 module.exports = {
-  applyDryRunVersion: applyPublishVersion,
   applyPublishVersion,
-  createDryRunVersion: createPublishVersion,
   createPublishVersion,
   extractTarball,
   parseArgValue,
-  stageDryRunPublishDirectory,
+  stagePublishDirectory,
 };
