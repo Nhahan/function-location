@@ -115,7 +115,22 @@ function resolveRuntimeTarget(): RuntimeTarget {
 }
 
 function detectLinuxLibc(): string | null {
-  const report = process.report?.getReport?.() as { header?: { glibcVersionRuntime?: unknown } } | undefined;
+  const processReport = process.report as (NodeJS.ProcessReport & { excludeNetwork?: boolean }) | undefined;
+  if (!processReport || typeof processReport.getReport !== 'function') {
+    return null;
+  }
+
+  // Network interface collection makes getReport() slow and can block on DNS.
+  // excludeNetwork exists on Node >= 22.13 and is ignored by older runtimes.
+  const excludeNetwork = processReport.excludeNetwork;
+  processReport.excludeNetwork = true;
+  let report: { header?: { glibcVersionRuntime?: unknown } } | undefined;
+  try {
+    report = processReport.getReport() as typeof report;
+  } finally {
+    processReport.excludeNetwork = excludeNetwork;
+  }
+
   const glibcVersionRuntime = report?.header?.glibcVersionRuntime;
 
   return typeof glibcVersionRuntime === 'string' && glibcVersionRuntime.length > 0

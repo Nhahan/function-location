@@ -84,6 +84,27 @@ describe('native loader', () => {
     ).toThrow(`Unable to load native addon from installed platform package ${packageName}`);
   });
 
+  test('detects glibc without collecting network data and restores the report setting', () => {
+    const processReport = process.report as NodeJS.ProcessReport & { excludeNetwork?: boolean };
+    const original = processReport.excludeNetwork;
+    let excludeNetworkDuringReport: boolean | undefined;
+    const getReport = jest.spyOn(processReport, 'getReport').mockImplementation(() => {
+      excludeNetworkDuringReport = processReport.excludeNetwork;
+      return { header: { glibcVersionRuntime: '2.35' } } as unknown as object;
+    });
+
+    try {
+      processReport.excludeNetwork = false;
+
+      expect(resolvePlatformPackageName('linux', 'x64')).toBe('function-location-linux-x64');
+      expect(excludeNetworkDuringReport).toBe(true);
+      expect(processReport.excludeNetwork).toBe(false);
+    } finally {
+      getReport.mockRestore();
+      processReport.excludeNetwork = original;
+    }
+  });
+
   test('throws a runtime-specific error for unsupported Linux libc targets', () => {
     expect(() =>
       createLocateV8Loader(
