@@ -57,6 +57,21 @@ jobs:
           node-version: 24.14.0
 
       - name: Download package artifacts
+        id: download_packages
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          pattern: package-*
+          path: artifacts
+
+      # Artifact downloads occasionally fail with transient network errors.
+      - name: Wait before retrying artifact download
+        if: steps.download_packages.outcome == 'failure'
+        shell: bash
+        run: sleep 30
+
+      - name: Retry download package artifacts
+        if: steps.download_packages.outcome == 'failure'
         uses: actions/download-artifact@v8
         with:
           pattern: package-*

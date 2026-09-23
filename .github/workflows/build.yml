@@ -185,6 +185,22 @@ jobs:
           node-version: ${{ matrix.nodeVersion }}
 
       - name: Download prebuild artifacts
+        id: download_prebuilds
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ${{ matrix.artifactPattern }}
+          path: ${{ matrix.packageDir }}/prebuilds/${{ matrix.platformDir }}
+          merge-multiple: true
+
+      # Artifact downloads occasionally fail with transient network errors.
+      - name: Wait before retrying artifact download
+        if: steps.download_prebuilds.outcome == 'failure'
+        shell: bash
+        run: sleep 30
+
+      - name: Retry download prebuild artifacts
+        if: steps.download_prebuilds.outcome == 'failure'
         uses: actions/download-artifact@v8
         with:
           pattern: ${{ matrix.artifactPattern }}
@@ -229,23 +245,32 @@ jobs:
           node-version: ${{ matrix.nodeVersion }}
           architecture: ${{ matrix.nodeArchitecture }}
 
-      - name: Download root package artifact
+      - name: Download package artifacts
+        id: download_packages
+        continue-on-error: true
         uses: actions/download-artifact@v8
         with:
-          name: package-function-location
-          path: artifacts/root
+          pattern: package-*
+          path: artifacts
 
-      - name: Download platform package artifact
+      # Artifact downloads occasionally fail with transient network errors.
+      - name: Wait before retrying artifact download
+        if: steps.download_packages.outcome == 'failure'
+        shell: bash
+        run: sleep 30
+
+      - name: Retry download package artifacts
+        if: steps.download_packages.outcome == 'failure'
         uses: actions/download-artifact@v8
         with:
-          name: package-${{ matrix.packageName }}
-          path: artifacts/platform
+          pattern: package-*
+          path: artifacts
 
       - name: Install packed packages and run smoke test
         shell: bash
         run: |
-          root_tarball="$(find artifacts/root -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
-          platform_tarball="$(find artifacts/platform -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+          root_tarball="$(find artifacts/package-function-location -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
+          platform_tarball="$(find "artifacts/package-${{ matrix.packageName }}" -maxdepth 1 -name '*.tgz' -type f | head -n 1)"
 
           if [ -z "$root_tarball" ] || [ -z "$platform_tarball" ]; then
             echo "Required tarball artifacts were not downloaded."
