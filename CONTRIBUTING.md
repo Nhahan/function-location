@@ -38,9 +38,15 @@ The root npm package ships only the JS wrapper and metadata. Native binaries are
 - a rerun skips platform packages that an earlier failed attempt already published, and stops if the root version already exists
 - packages are published with npm provenance; authentication uses the `NPM_TOKEN` secret when set, otherwise npm trusted publishing (OIDC) for `release.yml`
 
-Pushes to `main` publish unique `beta` prereleases under the npm `beta` dist-tag, so plain `npm install function-location` keeps resolving to the latest stable release.
+Pushes to `main` publish unique `beta` prereleases under the npm `beta` dist-tag, so plain `npm install function-location` keeps resolving to the latest stable release. When the manifest version is already on npm, betas use the next patch version (`2.0.1-beta.N` after `2.0.0`) so they never sort below a release.
 
 `Release` dry-runs are allowed from `ci-verify/*`. Stable publishes are restricted to manual releases from `main`.
+
+To cut a stable release:
+
+1. In one commit, set the new version in the root and platform manifests (including the root `optionalDependencies`) and add a matching `## <version>` section to `CHANGELOG.md`. Tests fail when the CHANGELOG section is missing.
+2. Merge it to `main`, then run `Release` manually with `dry_run` unchecked.
+3. The workflow publishes to npm and creates the `v<version>` GitHub release from the CHANGELOG section.
 
 ## Packaging notes
 
