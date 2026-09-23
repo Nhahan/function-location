@@ -15,7 +15,7 @@ native/build/
 packages/*/prebuilds/
 artifacts/
 coverage/
-*.tsbuildinfo/
+*.tsbuildinfo
 
 # Local IDE / OS files
 .idea/
@@ -25,5 +25,4 @@ coverage/
 
 # Local guidance files
 AGENTS.md
-AGETNS.md
 CLAUDE.md
