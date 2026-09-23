@@ -33,6 +33,11 @@ describe('locateV8', () => {
     expect(locateV8(input)).toEqual(__filename);
   });
 
+  test('bound functions resolve to the target function location', () => {
+    expect(locateV8(TestFunction.bind(null))).toEqual(__filename);
+    expect(locateV8(TestFunction.bind(null).bind(null))).toEqual(__filename);
+  });
+
   test('functions from vm scripts resolve to the script filename', () => {
     const input = vm.runInNewContext('(function () {})', {}, { filename: '/virtual/vm-script.js' });
 

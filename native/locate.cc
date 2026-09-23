@@ -24,6 +24,16 @@ static bool IsNonEmptyString(v8::Local<v8::Value> value) {
   return !value.IsEmpty() && value->IsString() && v8::Local<v8::String>::Cast(value)->Length() > 0;
 }
 
+static v8::Local<v8::Function> UnwrapBoundFunction(v8::Local<v8::Function> function) {
+  v8::Local<v8::Value> boundTarget = function->GetBoundFunction();
+  while (boundTarget->IsFunction()) {
+    function = v8::Local<v8::Function>::Cast(boundTarget);
+    boundTarget = function->GetBoundFunction();
+  }
+
+  return function;
+}
+
 static napi_value GetFunctionLocation(napi_env env, napi_callback_info info) {
   size_t argc = 1;
   napi_value argv[1] = {nullptr};
@@ -47,7 +57,7 @@ static napi_value GetFunctionLocation(napi_env env, napi_callback_info info) {
 
   // No local HandleScope: every handle created here, including the returned
   // path, must live in the callback scope N-API already opened.
-  v8::Local<v8::Function> function = v8::Local<v8::Function>::Cast(AsV8Value(argv[0]));
+  v8::Local<v8::Function> function = UnwrapBoundFunction(v8::Local<v8::Function>::Cast(AsV8Value(argv[0])));
 
   v8::Local<v8::Value> resourceName = function->GetScriptOrigin().ResourceName();
   if (IsNonEmptyString(resourceName)) {
