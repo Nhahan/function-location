@@ -1,6 +1,6 @@
 {
   "name": "function-location-win32-x64",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Windows x64 native binaries for function-location.",
   "main": "index.js",
   "files": [
@@ -14,7 +14,7 @@
     "x64"
   ],
   "engines": {
-    "node": ">=16 <25"
+    "node": ">=20 <27"
   },
   "license": "MIT",
   "homepage": "https://github.com/Nhahan/function-location",

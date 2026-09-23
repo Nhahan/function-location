@@ -1,11 +1,13 @@
 {
   "rootPackageName": "function-location",
   "supportedNodeTargets": [
-    { "major": 16, "version": "16.20.2", "abi": "93" },
-    { "major": 18, "version": "18.20.8", "abi": "108" },
     { "major": 20, "version": "20.20.1", "abi": "115" },
+    { "major": 21, "version": "21.7.3", "abi": "120" },
     { "major": 22, "version": "22.22.1", "abi": "127" },
-    { "major": 24, "version": "24.14.0", "abi": "137" }
+    { "major": 23, "version": "23.11.1", "abi": "131" },
+    { "major": 24, "version": "24.14.0", "abi": "137" },
+    { "major": 25, "version": "25.9.0", "abi": "141" },
+    { "major": 26, "version": "26.10.0", "abi": "147" }
   ],
   "platformPackages": [
     {

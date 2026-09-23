@@ -9,6 +9,7 @@
     }
   ],
   "variables": {
-    "openssl_fips": ""
+    "enable_thin_lto%": "false",
+    "lto_jobs%": ""
   }
 }

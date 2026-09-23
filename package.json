@@ -1,6 +1,6 @@
 {
   "name": "function-location",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Retrieve `[[FunctionLocation]]` from V8.",
   "main": "dist/lib/index.js",
   "types": "dist/lib/index.d.ts",
@@ -41,7 +41,7 @@
     "url": "git+https://github.com/Nhahan/function-location.git"
   },
   "engines": {
-    "node": ">=16 <25"
+    "node": ">=20 <27"
   },
   "devDependencies": {
     "@types/jest": "^29.5.3",
@@ -56,9 +56,9 @@
     "node-gyp-build": "^4.8.4"
   },
   "optionalDependencies": {
-    "function-location-darwin-arm64": "1.0.0",
-    "function-location-darwin-x64": "1.0.0",
-    "function-location-linux-x64": "1.0.0",
-    "function-location-win32-x64": "1.0.0"
+    "function-location-darwin-arm64": "2.0.0",
+    "function-location-darwin-x64": "2.0.0",
+    "function-location-linux-x64": "2.0.0",
+    "function-location-win32-x64": "2.0.0"
   }
 }
