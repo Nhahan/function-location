@@ -9,7 +9,9 @@ const {
   isPublished,
   parseArgs,
   publishPackages,
+  resolvePrereleaseBaseVersion,
 } = require('../scripts/publish-packages');
+const { getNextPatchVersion } = require('../scripts/stage-publish');
 const rootPackageJson = require('../package.json');
 
 const VERSION = rootPackageJson.version;
@@ -163,6 +165,38 @@ describe('publish-packages', () => {
     expect(npm.calls[npm.calls.length - 1].manifest?.optionalDependencies).toEqual(
       Object.fromEntries(PUBLISH_ORDER.slice(0, -1).map((dep) => [dep, `${VERSION}-beta.7.1`])),
     );
+  });
+
+  posixOnly('publishes prereleases of the next patch once the current version is released', () => {
+    const npm = createNpmMock([`function-location@${VERSION}`]);
+    const logs: string[] = [];
+    const next = getNextPatchVersion(VERSION);
+
+    const published = publishPackages(
+      { artifactsDir, tag: 'beta', versionSuffix: 'beta.8.1', dryRun: false },
+      npm.runNpm,
+      (message: string) => logs.push(message),
+      {},
+    );
+
+    expect(published).toEqual(PUBLISH_ORDER.map((name) => `${name}@${next}-beta.8.1`));
+    for (const call of npm.calls) {
+      expect(call.manifest?.version).toBe(`${next}-beta.8.1`);
+    }
+    expect(logs).toContain(`The current version is already released; publishing prereleases of ${next}.`);
+  });
+
+  test('keeps the current version as the prerelease base until it is released', () => {
+    expect(resolvePrereleaseBaseVersion(createNpmMock().runNpm)).toBe('');
+    expect(resolvePrereleaseBaseVersion(createNpmMock([`function-location@${VERSION}`]).runNpm)).toBe(
+      getNextPatchVersion(VERSION),
+    );
+  });
+
+  test('computes the next patch version of a release', () => {
+    expect(getNextPatchVersion('2.0.0')).toBe('2.0.1');
+    expect(getNextPatchVersion('2.9.19')).toBe('2.9.20');
+    expect(() => getNextPatchVersion('2.1.0-rc.1')).toThrow('Cannot compute the next patch version');
   });
 
   test('treats only E404 as an unpublished version', () => {

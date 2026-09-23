@@ -23,6 +23,15 @@ function createPublishVersion(version, suffix) {
   return version.includes('-') ? `${version}.${suffix}` : `${version}-${suffix}`;
 }
 
+function getNextPatchVersion(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+  if (!match) {
+    throw new Error(`Cannot compute the next patch version of ${version}.`);
+  }
+
+  return `${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
+}
+
 function applyPublishVersion(manifest, version) {
   const updated = {
     ...manifest,
@@ -46,7 +55,7 @@ function extractTarball(sourceTarball, outputDir, executor = execFileSync) {
   executor('tar', ['-xzf', sourceTarball, '-C', outputDir]);
 }
 
-function stagePublishDirectory(sourceTarball, outputDir, versionSuffix, executor = execFileSync) {
+function stagePublishDirectory(sourceTarball, outputDir, versionSuffix, { baseVersion = '', executor = execFileSync } = {}) {
   const resolvedTarball = path.resolve(sourceTarball);
   const resolvedOutputDir = path.resolve(outputDir);
 
@@ -65,7 +74,7 @@ function stagePublishDirectory(sourceTarball, outputDir, versionSuffix, executor
   }
 
   const manifest = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-  const publishVersion = createPublishVersion(manifest.version, versionSuffix);
+  const publishVersion = createPublishVersion(baseVersion || manifest.version, versionSuffix);
   const stagedManifest = applyPublishVersion(manifest, publishVersion);
 
   fs.writeFileSync(packageJsonPath, `${JSON.stringify(stagedManifest, null, 2)}\n`);
@@ -105,6 +114,7 @@ module.exports = {
   applyPublishVersion,
   createPublishVersion,
   extractTarball,
+  getNextPatchVersion,
   parseArgValue,
   stagePublishDirectory,
 };

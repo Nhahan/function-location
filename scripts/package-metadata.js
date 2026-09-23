@@ -69,10 +69,10 @@ function getPublishedPackages(rootDir = process.cwd()) {
   }));
 }
 
-function getPublishedPackageSpecs(versionSuffix = '', rootDir = process.cwd()) {
+function getPublishedPackageSpecs(versionSuffix = '', rootDir = process.cwd(), baseVersion = '') {
   return getPublishedPackages(rootDir).map((entry) => ({
     ...entry,
-    version: versionSuffix ? createPublishVersion(entry.version, versionSuffix) : entry.version,
+    version: versionSuffix ? createPublishVersion(baseVersion || entry.version, versionSuffix) : entry.version,
   }));
 }
 

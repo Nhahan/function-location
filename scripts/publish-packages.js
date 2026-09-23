@@ -6,9 +6,9 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { getPublishedPackageSpecs } = require('./package-metadata');
+const { getPublishedPackages, getPublishedPackageSpecs } = require('./package-metadata');
 const { getNpmCommandSpec } = require('./npm-cli');
-const { stagePublishDirectory } = require('./stage-publish');
+const { getNextPatchVersion, stagePublishDirectory } = require('./stage-publish');
 
 const rootPackageDir = path.resolve(__dirname, '..');
 
@@ -44,8 +44,8 @@ function parseArgs(argv = process.argv.slice(2)) {
 }
 
 // Platform packages go first so the root package never references missing versions.
-function getPublishOrder(versionSuffix = '', rootDir = rootPackageDir) {
-  const [rootPackage, ...platformPackages] = getPublishedPackageSpecs(versionSuffix, rootDir);
+function getPublishOrder(versionSuffix = '', rootDir = rootPackageDir, baseVersion = '') {
+  const [rootPackage, ...platformPackages] = getPublishedPackageSpecs(versionSuffix, rootDir, baseVersion);
 
   return platformPackages
     .map((entry) => ({ ...entry, isRoot: false }))
@@ -98,8 +98,25 @@ function createPublishArgs(target, options, env = process.env) {
   return args;
 }
 
+// Prereleases of an already released version would sort below it, so they
+// build on the next patch version instead.
+function resolvePrereleaseBaseVersion(runNpm, rootDir = rootPackageDir) {
+  const [rootPackage] = getPublishedPackages(rootDir);
+
+  if (rootPackage.version.includes('-') || !isPublished(runNpm, `${rootPackage.name}@${rootPackage.version}`)) {
+    return '';
+  }
+
+  return getNextPatchVersion(rootPackage.version);
+}
+
 function publishPackages(options, runNpm = createNpmRunner(), log = console.log, env = process.env) {
-  const packages = getPublishOrder(options.versionSuffix);
+  const baseVersion = options.versionSuffix && !options.dryRun ? resolvePrereleaseBaseVersion(runNpm) : '';
+  if (baseVersion) {
+    log(`The current version is already released; publishing prereleases of ${baseVersion}.`);
+  }
+
+  const packages = getPublishOrder(options.versionSuffix, rootPackageDir, baseVersion);
   const stagingRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'function-location-publish-'));
   const published = [];
 
@@ -123,7 +140,7 @@ function publishPackages(options, runNpm = createNpmRunner(), log = console.log,
 
       const tarball = findPackageTarball(options.artifactsDir, entry.name);
       const target = options.versionSuffix
-        ? stagePublishDirectory(tarball, path.join(stagingRoot, entry.name), options.versionSuffix).packageDir
+        ? stagePublishDirectory(tarball, path.join(stagingRoot, entry.name), options.versionSuffix, { baseVersion }).packageDir
         : tarball;
 
       log(`Publishing ${spec} with dist-tag ${options.tag}${options.dryRun ? ' (dry run)' : ''}.`);
@@ -153,4 +170,5 @@ module.exports = {
   isPublished,
   parseArgs,
   publishPackages,
+  resolvePrereleaseBaseVersion,
 };
