@@ -32,11 +32,11 @@
       const results = [
         {
           approach: "locateV8",
-          latency: 0.1197
+          latency: 0.0254
         },
         {
           approach: "inspector protocol",
-          latency: 224.8900
+          latency: 367.4543
         }
       ];
 
@@ -88,11 +88,11 @@
           scales: {
             x: {
               type: "logarithmic",
-              min: 0.1,
+              min: 0.01,
               max: 1000,
               ticks: {
                 callback(value) {
-                  if ([0.1, 1, 10, 100, 1000].includes(Number(value))) {
+                  if ([0.01, 0.1, 1, 10, 100, 1000].includes(Number(value))) {
                     return `${value} µs`;
                   }
 

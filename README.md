@@ -11,7 +11,7 @@
 npm install function-location
 ```
 
-Supports Node.js `16+`.
+Supports Node.js `20` through `26` on Linux x64 (glibc), Windows x64, and macOS (x64 and arm64).
 
 ## Usage
 
@@ -27,9 +27,13 @@ locateV8(exampleFunction);  // /path/to/file.ts
 
 ## API
 
-- `locateV8(input: Function): string | undefined`
-- Throws `Function argument expected` when input is not a function/class constructor.
-- Returns `undefined` for anonymous/native/builtins where metadata is unavailable.
+`locateV8(input: Function): string | undefined`
+
+- Works for classes, functions, methods, arrow functions, and async/generator functions, named or anonymous.
+- Bound functions resolve to the location of their target function.
+- Functions compiled with `vm` resolve to the script `filename`.
+- Returns `undefined` when no source file exists: builtins (`Math.max`, `Array`), functions created by `eval` or `new Function`, and proxies.
+- Throws `TypeError: Function argument expected` when `input` is not a function.
 
 ## Performance sample
 
@@ -39,8 +43,8 @@ Sample comparison against an inspector-protocol baseline:
 
 | Approach | Median time / call | Relative speed |
 | --- | ---: | ---: |
-| `locateV8` | `0.1197 µs` | `1878.60x faster` |
-| `inspector protocol` | `224.8900 µs` | `baseline` |
+| `locateV8` | `0.0254 µs` | `14438.93x faster` |
+| `inspector protocol` | `367.4543 µs` | `baseline` |
 
 ![Locating performance (example run)](./docs/benchmark-locate.png)
 

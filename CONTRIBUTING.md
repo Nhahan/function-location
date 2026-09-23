@@ -12,7 +12,7 @@ If a workflow change needs GitHub Actions verification, validate it on `ci-verif
 ## Runtime support
 
 - Public package: `function-location`
-- Supported Node.js versions: `16.x`, `18.x`, `20.x`, `22.x`, `24.x`
+- Supported Node.js versions: `20.x` through `26.x`, every major including odd releases, so each version inside `engines` has a prebuilt binary
 - Published platform packages:
   - `function-location-linux-x64` (`glibc`)
   - `function-location-win32-x64`
@@ -23,17 +23,20 @@ The root npm package ships only the JS wrapper and metadata. Native binaries are
 
 ## CI and release
 
-- `CI` is the fast feedback workflow:
-  - maintainer test matrix on Linux, Windows, and macOS across Node `20/22/24`
-  - root package tarball verification once per OS on Node `20`
-  - platform prebuild generation and platform package tarball verification
-  - compatibility smoke tests across Node `16/18/20/22/24`
-- `Release` is the publish gate:
-  - same maintainer test matrix
-  - platform package tarballs are built first
-  - the root package tarball is built separately
-  - compatibility smoke tests install the root tarball plus the matching platform tarball across Node `16/18/20/22/24`
-  - publish order is platform packages first, then the root package
+`build.yml` is the shared pipeline that both workflows call:
+
+- maintainer test matrix on Linux, Windows, and macOS across Node `20/22/24/26`
+- root package tarball verification on every OS
+- platform prebuilds for Node `20` through `26`, verified and packed into platform package tarballs
+- compatibility smoke tests that install the root tarball plus the matching platform tarball on every supported Node version
+
+`CI` runs `build.yml` for pushes to `main`, `dev`, and `ci-verify/**`, and for pull requests.
+
+`Release` runs `build.yml` and then `scripts/publish-packages.js`:
+
+- platform packages are published first, then the root package
+- a rerun skips platform packages that an earlier failed attempt already published, and stops if the root version already exists
+- packages are published with npm provenance; authentication uses the `NPM_TOKEN` secret when set, otherwise npm trusted publishing (OIDC) for `release.yml`
 
 Pushes to `main` publish unique `beta` prereleases under the npm `beta` dist-tag, so plain `npm install function-location` keeps resolving to the latest stable release.
 
@@ -43,5 +46,6 @@ Pushes to `main` publish unique `beta` prereleases under the npm `beta` dist-tag
 
 - Generated `.node` binaries are CI artifacts only and must not be committed.
 - The root package depends on exact-version `optionalDependencies` for the platform packages. Keep those versions aligned.
+- Supported Node.js targets live in `config/package-layout.json`. When adding a major, add its ABI there and widen `engines` in the root and platform manifests.
 - Repository installs should use `npm install --omit=optional` because the platform packages are release artifacts, not local workspace dependencies.
 - The public API is `locateV8()`. Internal runtime details such as V8 access should not leak into the exported API surface.
