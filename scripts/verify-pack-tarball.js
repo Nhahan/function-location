@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { getNpmCommandSpec } = require('./npm-cli');
 
 function parsePackageDir(argv = process.argv.slice(2), cwd = process.cwd()) {
   const arg = argv.find((item) => item.startsWith('--package-dir='));
@@ -24,38 +25,21 @@ function cleanupTarball(tarballPath) {
   }
 }
 
-function resolveNpmCliPath(execPath = process.execPath) {
-  const nodeDir = path.dirname(execPath);
-  const candidates = [
-    path.resolve(nodeDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
-    path.resolve(nodeDir, '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
-    path.resolve(nodeDir, '..', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
-  ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  return null;
-}
-
 function createPackInvocation(env = process.env, execPath = process.execPath) {
   const args = ['pack', '--json', '--silent', '--ignore-scripts'];
 
-  const npmExecPath = env.npm_execpath || resolveNpmCliPath(execPath);
-
-  if (npmExecPath) {
+  if (env.npm_execpath) {
     return {
       command: execPath,
-      args: [npmExecPath].concat(args),
+      args: [env.npm_execpath].concat(args),
     };
   }
 
+  const npmCommand = getNpmCommandSpec(env, execPath);
+
   return {
-    command: process.platform === 'win32' ? 'npm.cmd' : 'npm',
-    args,
+    command: npmCommand.command,
+    args: npmCommand.args.concat(args),
   };
 }
 
@@ -292,7 +276,6 @@ module.exports = {
   normalizePath,
   packStagedPackage,
   parsePackageDir,
-  resolveNpmCliPath,
   stagePackDirectory,
   verifyPackTarball,
 };

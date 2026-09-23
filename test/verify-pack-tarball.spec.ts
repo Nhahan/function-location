@@ -6,10 +6,10 @@ const {
   createPackInvocation,
   getRequiredEntryPath,
   parsePackageDir,
-  resolveNpmCliPath,
   stagePackDirectory,
   verifyPackTarball,
 } = require('../scripts/verify-pack-tarball');
+const { resolveNpmCliPath } = require('../scripts/npm-cli');
 
 describe('verify-pack-tarball', () => {
   test('uses npm_execpath when available to avoid PATH-dependent npm lookups', () => {
@@ -26,7 +26,7 @@ describe('verify-pack-tarball', () => {
   });
 
   test('falls back to the resolved npm cli path outside npm-run environments', () => {
-    const invocation = createPackInvocation({});
+    const invocation = createPackInvocation({ PATH: process.env.PATH });
     const npmCliPath = resolveNpmCliPath();
 
     expect(invocation.command).toBe(process.execPath);

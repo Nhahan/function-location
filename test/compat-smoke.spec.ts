@@ -1,15 +1,13 @@
 const {
   parseArgs,
-  getNpmCommandSpec,
   getSmokeScriptSource,
-  resolveNpmCliPath,
 } = require('../scripts/run-compat-smoke');
 
 describe('run-compat-smoke', () => {
   test('uses locateV8 in the compatibility smoke script', () => {
     const source = getSmokeScriptSource();
 
-    expect(source).toContain('var located = lib.locateV8(smoke);');
+    expect(source).toContain('const located = lib.locateV8(smoke);');
     expect(source).not.toContain('lib.locate(smoke)');
   });
 
@@ -29,12 +27,5 @@ describe('run-compat-smoke', () => {
       expectedHostArm64: '1',
       expectedTranslated: '1',
     });
-  });
-
-  test('resolves npm through the current node installation', () => {
-    const command = getNpmCommandSpec();
-
-    expect(command.command).toBe(process.execPath);
-    expect(command.args).toEqual([resolveNpmCliPath()]);
   });
 });

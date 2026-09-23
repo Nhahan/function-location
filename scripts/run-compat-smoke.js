@@ -2,13 +2,14 @@
 
 'use strict';
 
-var childProcess = require('child_process');
-var fs = require('fs');
-var os = require('os');
-var path = require('path');
+const childProcess = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const npmCli = require('./npm-cli');
 
 function parseArgs(argv) {
-  var options = {
+  const options = {
     rootTarball: '',
     platformTarball: '',
     expectedNodeArch: '',
@@ -46,7 +47,7 @@ function parseArgs(argv) {
 }
 
 function runCommand(command, args, cwd) {
-  var result = childProcess.spawnSync(command, args, {
+  const result = childProcess.spawnSync(command, args, {
     cwd: cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -57,8 +58,8 @@ function runCommand(command, args, cwd) {
   }
 
   if (result.status !== 0) {
-    var stdout = result.stdout ? '\nstdout:\n' + result.stdout : '';
-    var stderr = result.stderr ? '\nstderr:\n' + result.stderr : '';
+    const stdout = result.stdout ? '\nstdout:\n' + result.stdout : '';
+    const stderr = result.stderr ? '\nstderr:\n' + result.stderr : '';
     throw new Error(command + ' ' + args.join(' ') + ' exited with code ' + result.status + '.' + stdout + stderr);
   }
 
@@ -76,53 +77,13 @@ function readDarwinExecutionContext() {
   };
 }
 
-function removeTree(targetPath) {
-  if (!fs.existsSync(targetPath)) {
-    return;
-  }
-
-  if (fs.lstatSync(targetPath).isDirectory()) {
-    fs.readdirSync(targetPath).forEach(function (entry) {
-      removeTree(path.join(targetPath, entry));
-    });
-    fs.rmdirSync(targetPath);
-    return;
-  }
-
-  fs.unlinkSync(targetPath);
-}
-
-function resolveNpmCliPath() {
-  var nodeDir = path.dirname(process.execPath);
-  var candidates = [
-    path.resolve(nodeDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
-    path.resolve(nodeDir, '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
-    path.resolve(nodeDir, '..', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
-  ];
-
-  for (var index = 0; index < candidates.length; index += 1) {
-    if (fs.existsSync(candidates[index])) {
-      return candidates[index];
-    }
-  }
-
-  throw new Error('Unable to resolve npm-cli.js for ' + process.execPath + '.');
-}
-
-function getNpmCommandSpec() {
-  return {
-    command: process.execPath,
-    args: [resolveNpmCliPath()],
-  };
-}
-
 function getSmokeScriptSource() {
   return [
-    "var path = require('path');",
-    "var lib = require('function-location');",
+    "const path = require('path');",
+    "const lib = require('function-location');",
     'function smoke() {}',
-    'var expected = path.resolve(__filename);',
-    'var located = lib.locateV8(smoke);',
+    'const expected = path.resolve(__filename);',
+    'const located = lib.locateV8(smoke);',
     'if (located !== expected) {',
     "  console.error(JSON.stringify({ expected: expected, located: located, arch: process.arch, version: process.version }));",
     '  process.exit(1);',
@@ -151,7 +112,7 @@ function assertRuntimeContext(options) {
     return;
   }
 
-  var context = readDarwinExecutionContext();
+  const context = readDarwinExecutionContext();
 
   if (options.expectedHostArm64 && context.hostArm64 !== options.expectedHostArm64) {
     throw new Error(
@@ -177,13 +138,13 @@ function runCompatibilitySmoke(options) {
 
   assertRuntimeContext(options);
 
-  var tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'function-location-compat-'));
-  var rootTarball = path.resolve(options.rootTarball);
-  var platformTarball = path.resolve(options.platformTarball);
-  var rootPackageTarball = path.join(tempDir, 'function-location-root.tgz');
-  var platformPackageTarball = path.join(tempDir, 'function-location-platform.tgz');
-  var smokeScript = path.join(tempDir, 'smoke.js');
-  var npmCommand = getNpmCommandSpec();
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'function-location-compat-'));
+  const rootTarball = path.resolve(options.rootTarball);
+  const platformTarball = path.resolve(options.platformTarball);
+  const rootPackageTarball = path.join(tempDir, 'function-location-root.tgz');
+  const platformPackageTarball = path.join(tempDir, 'function-location-platform.tgz');
+  const smokeScript = path.join(tempDir, 'smoke.js');
+  const npmCommand = npmCli.getNpmCommandSpec();
 
   try {
     fs.copyFileSync(rootTarball, rootPackageTarball);
@@ -198,7 +159,7 @@ function runCompatibilitySmoke(options) {
     process.stdout.write(runCommand(process.execPath, [smokeScript], tempDir));
   } finally {
     try {
-      removeTree(tempDir);
+      fs.rmSync(tempDir, { recursive: true, force: true });
     } catch (error) {
       process.stderr.write(
         'Compatibility smoke cleanup warning: ' + (error && error.message ? error.message : String(error)) + '\n',
@@ -222,9 +183,7 @@ if (require.main === module) {
 
 module.exports = {
   getSmokeScriptSource: getSmokeScriptSource,
-  getNpmCommandSpec: getNpmCommandSpec,
   parseArgs: parseArgs,
   readDarwinExecutionContext: readDarwinExecutionContext,
-  resolveNpmCliPath: resolveNpmCliPath,
   runCompatibilitySmoke: runCompatibilitySmoke,
 };
